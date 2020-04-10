@@ -1,0 +1,22 @@
+{
+  "name": "sequence-board-game",
+  "version": "1.0.0",
+  "description": "Sequence, an abstract strategy board-and-card game.",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/starain31/sequence-board-game.git"
+  },
+  "keywords": [
+    "board-geme"
+  ],
+  "author": "sakib",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/starain31/sequence-board-game/issues"
+  },
+  "homepage": "https://github.com/starain31/sequence-board-game#readme"
+}
