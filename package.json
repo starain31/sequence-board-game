@@ -4,7 +4,9 @@
   "description": "Sequence, an abstract strategy board-and-card game.",
   "main": "index.js",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build"
   },
   "repository": {
     "type": "git",
@@ -18,5 +20,8 @@
   "bugs": {
     "url": "https://github.com/starain31/sequence-board-game/issues"
   },
-  "homepage": "https://github.com/starain31/sequence-board-game#readme"
+  "homepage": "https://github.com/starain31/sequence-board-game#readme",
+  "dependencies": {
+    "@vue/cli-service": "^4.3.1"
+  }
 }
