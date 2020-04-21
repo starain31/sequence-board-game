@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   version="1.0"
+   width="747.34698"
+   height="1046.2856"
+   id="svg2">
+  <defs
+     id="defs4" />
+  <g
+     transform="translate(2.2448993,-0.6479052)"
+     id="layer1">
+    <g
+       transform="translate(-2.040797,-11.714273)"
+       id="g2775">
+      <g
+         id="g2797">
+        <g
+           transform="translate(2.7682687,0.6819287)"
+           id="g2751">
+          <text
+             x="58.665966"
+             y="158.36212"
+             id="text2396"
+             xml:space="preserve"
+             style="font-size:144px;font-style:normal;font-weight:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Arial"><tspan
+               x="58.665966"
+               y="158.36212"
+               id="tspan2398"
+               style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:center;text-anchor:middle;font-family:Arial Narrow;-inkscape-font-specification:Arial Narrow">7</tspan></text>
+          <text
+             x="62.779247"
+             y="298.36212"
+             id="text2702"
+             xml:space="preserve"
+             style="font-size:144px;font-style:normal;font-weight:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Arial"><tspan
+               x="62.779247"
+               y="298.36212"
+               id="tspan2704"
+               style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:center;text-anchor:middle;font-family:Arial Narrow;-inkscape-font-specification:Arial Narrow">♠</tspan></text>
+        </g>
+        <use
+           transform="matrix(-1,0,0,-1,746.93878,1071.01)"
+           id="use2757"
+           x="0"
+           y="0"
+           width="747.34698"
+           height="1046.2856"
+           xlink:href="#g2751" />
+      </g>
+    </g>
+    <g
+       transform="translate(66.406249,0)"
+       id="g2427">
+      <g
+         transform="translate(-2.040797,-11.714273)"
+         id="g2412">
+        <g
+           transform="translate(-140,0)"
+           id="g2857">
+          <text
+             x="307.06314"
+             y="310.63928"
+             id="text2783"
+             xml:space="preserve"
+             style="font-size:250px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Arial"><tspan
+               x="307.06314"
+               y="310.63928"
+               id="tspan2785"
+               style="text-align:center;text-anchor:middle">♠</tspan></text>
+          <use
+             transform="matrix(1,0,0,-1,0,1071.01)"
+             id="use2805"
+             x="0"
+             y="0"
+             width="747.34698"
+             height="1046.2856"
+             xlink:href="#text2783" />
+          <use
+             transform="translate(0,300)"
+             id="use2919"
+             x="0"
+             y="0"
+             width="747.34698"
+             height="1046.2856"
+             xlink:href="#text2783" />
+        </g>
+        <use
+           transform="translate(280,0)"
+           id="use2862"
+           x="0"
+           y="0"
+           width="747.34698"
+           height="1046.2856"
+           xlink:href="#g2857" />
+      </g>
+      <text
+         x="305.02234"
+         y="458.92499"
+         id="text2941"
+         xml:space="preserve"
+         style="font-size:250px;font-style:normal;font-weight:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Arial"><tspan
+           x="305.02234"
+           y="458.92499"
+           id="tspan2943">♠</tspan></text>
+    </g>
+  </g>
+</svg>
