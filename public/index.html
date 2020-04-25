@@ -6,23 +6,9 @@
     <link rel="stylesheet" type="text/css" href="./stylesheets/index.css">
 </head>
 <body>
-<div class="app">
-    <div id="board" class="board">
-        <div v-for="row in deck" class="board-row">
-            <div v-for="card in row" class="board-cell">
-                <img :src="'./images/card_deck/Cards-' + card.name + '.svg'" height="100%">
-            </div>
-        </div>
-    </div>
-    <div id="controller" class="controller">
-        <h1>Board Controller</h1>
-        <button @click="shuffle" class="shuffle_button">Shuffle</button>
-        <div>
-            <div v-for="card in cards_in_hand" class="board-cell" style="float: left" @click="play_card">
-                <img :src="'./images/card_deck/Cards-' + card.name + '.svg'" height="100%">
-            </div>
-        </div>
-    </div>
+<div id="app" class="app">
+    <board></board>
+    <controller></controller>
 </div>
 
 <script src="https://unpkg.com/vue"></script>

@@ -12,7 +12,7 @@ body {
 
 .board-cell {
     background-color: whitesmoke;
-    border: 5px black solid;
+    border: 2px black solid;
     height: 9vh;
 }
 
