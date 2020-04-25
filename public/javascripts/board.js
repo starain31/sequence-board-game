@@ -2,7 +2,11 @@ Vue.component('board', {
     template: `
         <div class="board">
             <div v-for="row in deck" class="board-row">
-                <board-cell v-for="card in row" :card="card"></board-cell>
+                <div v-for="card in row">
+                    <board-cell 
+                            :card="card"
+                    ></board-cell>
+                </div>
             </div>
         </div>`,
 
@@ -348,12 +352,15 @@ Vue.component('board', {
 Vue.component('board-cell', {
     template: `
         <div class="board-cell" @click="play_card(card.name)">
-            <img :src="'./images/card_deck/Cards-' + card.name + '.svg'" height="100%" :alt="card.name">
+            <img :src="'./images/card_deck/Cards-' + card.name + '.svg'" 
+                 height="100%" 
+                 :alt="card.name"
+            >
         </div>`,
 
     props: {
         card: {
-            type: String,
+            type: Object,
             require: true,
         }
     },
@@ -476,43 +483,65 @@ Vue.component('controller', {
                 {name: 'J-Diamond'}
             ],
             cards_in_hand: undefined,
-            selected_card: undefined,
         }
     },
 
     methods: {
-        shuffle: function () {
+        shuffle () {
             this.cards_in_hand = get_cards({deck: this.deck, number_of_cards: 7});
         },
-        select_card: function (card_name) {
-            this.selected_card = card_name;
-        }
     },
 });
 
 Vue.component('hand', {
     template: `
         <div>
-           <finger v-for="card in cards" :card="card"></finger>
+            <div v-for="card in cards">
+                <finger 
+                        :card="card" 
+                        :class="{selected_card: card === selected_card}"
+                        @update_selected_card="update_selected_card"
+                ></finger>
+            </div>
         </div>`,
 
-     props: {
+    data() {
+        return {
+            selected_card: undefined,
+        }
+    },
+
+    methods: {
+        update_selected_card(card) {
+            this.selected_card = card;
+        }
+    },
+
+    props: {
         cards: {
             type: Array,
             require: true,
         }
-     }
+    }
 });
 
 Vue.component('finger', {
     template: `
-         <div class="board-cell" style="float: left" @click="select_card(card.name)">
+        <div class="board-cell" style="float: left" 
+             @click="select_card"
+        >
             <img :src="'./images/card_deck/Cards-' + card.name + '.svg'" height="100%" :alt="card.name">
-         </div>`,
+        </div>`,
+
+    methods: {
+        select_card(){
+            this.$emit(`update_selected_card`, this.card);
+        }
+    },
 
     props: {
         card: {
-            type: String,
+            type: Object,
             required: true
         }
     }
