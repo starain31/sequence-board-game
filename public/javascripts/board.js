@@ -5,6 +5,12 @@ Vue.component('board', {
                 <div v-for="card in row">
                     <board-cell 
                             :card="card"
+                            :option="option"
+                            @update_board="update_board"
+                            :class="{
+                                occupied_cell: (card.occupied),
+                                selected_card: (card.name === option && !card.occupied)
+                            }"
                     ></board-cell>
                 </div>
             </div>
@@ -334,34 +340,51 @@ Vue.component('board', {
                     },
                 ],
             ],
+            option: undefined,
         }
     },
 
     methods: {
-        play_card(card_name) {
-            const selected_card = controller.$data.selected_card;
-            if (is_valid_move(selected_card, card_name)) {
-
-            } else {
-                console.log(`Invalid Move`);
-            }
+        update_board() {
+            this.option=undefined;
         }
     },
+
+    mounted() {
+        event_bus.$on('highlight_options_on_board', (selected_card) => {
+            this.option = selected_card;
+        });
+    }
 });
 
 Vue.component('board-cell', {
     template: `
-        <div class="board-cell" @click="play_card(card.name)">
+        <div class="board-cell" @click="play_card(card)">
             <img :src="'./images/card_deck/Cards-' + card.name + '.svg'" 
                  height="100%" 
                  :alt="card.name"
             >
         </div>`,
 
+    methods: {
+        play_card(card) {
+            if (is_valid_move(this.option, card)) {
+                this.card.occupied = true;
+                this.$emit('update_board');
+            } else {
+                window.alert(`Invalid Move`)
+            }
+        }
+    },
+
     props: {
         card: {
             type: Object,
             require: true,
+        },
+        option: {
+            type: String,
+            required: false
         }
     },
 });
@@ -514,6 +537,7 @@ Vue.component('hand', {
     methods: {
         update_selected_card(card) {
             this.selected_card = card;
+            event_bus.$emit('highlight_options_on_board', this.selected_card.name);
         }
     },
 
@@ -547,6 +571,8 @@ Vue.component('finger', {
     }
 });
 
+const event_bus = new Vue();
+
 const app = new Vue({
     el: '#app',
 });
@@ -571,6 +597,6 @@ function get_option(card_name) {
     }
 }
 
-function is_valid_move(selected_card, card_name) {
-    return selected_card === card_name;
+function is_valid_move(selected_card_name, card) {
+    return selected_card_name === card.name;
 }
