@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.0"
+   width="747.34698"
+   height="1046.2856"
+   id="svg2"
+   sodipodi:version="0.32"
+   inkscape:version="0.46"
+   sodipodi:docname="Cards-2-Spade.svg"
+   inkscape:output_extension="org.inkscape.output.svg.inkscape">
+  <metadata
+     id="metadata18">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <sodipodi:namedview
+     inkscape:window-height="667"
+     inkscape:window-width="640"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     guidetolerance="10.0"
+     gridtolerance="10.0"
+     objecttolerance="10.0"
+     borderopacity="1.0"
+     bordercolor="#666666"
+     pagecolor="#ffffff"
+     id="base"
+     showgrid="false"
+     inkscape:zoom="0.44156202"
+     inkscape:cx="373.67349"
+     inkscape:cy="523.14282"
+     inkscape:window-x="66"
+     inkscape:window-y="87"
+     inkscape:current-layer="g2751" />
+  <defs
+     id="defs4">
+    <inkscape:perspective
+       sodipodi:type="inkscape:persp3d"
+       inkscape:vp_x="0 : 523.14282 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_z="747.34698 : 523.14282 : 1"
+       inkscape:persp3d-origin="373.67349 : 348.76188 : 1"
+       id="perspective20" />
+  </defs>
+  <g
+     transform="translate(2.2448993,-0.6479052)"
+     id="layer1">
+    <g
+       transform="translate(-2.0407968,-11.714273)"
+       id="g2775">
+      <g
+         id="g2797">
+        <g
+           transform="translate(2.7682687,0.6819287)"
+           id="g2751">
+          <text
+             x="58.665966"
+             y="158.36212"
+             id="text2396"
+             xml:space="preserve"
+             style="font-size:144px;font-style:normal;font-weight:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Arial"><tspan
+               x="58.665966"
+               y="158.36212"
+               id="tspan2398"
+               style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:center;text-anchor:middle;font-family:Arial Narrow;-inkscape-font-specification:Arial Narrow">2</tspan></text>
+          <text
+             x="62.779247"
+             y="298.36212"
+             id="text2702"
+             xml:space="preserve"
+             style="font-size:144px;font-style:normal;font-weight:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Arial"><tspan
+               x="62.779247"
+               y="298.36212"
+               id="tspan2704"
+               style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:center;text-anchor:middle;font-family:Arial Narrow;-inkscape-font-specification:Arial Narrow">♠</tspan></text>
+        </g>
+        <use
+           transform="matrix(-1,0,0,-1,746.93878,1071.01)"
+           id="use2757"
+           x="0"
+           y="0"
+           width="747.34698"
+           height="1046.2856"
+           xlink:href="#g2751" />
+      </g>
+      <g
+         transform="translate(66.406249,0)"
+         id="g2807">
+        <text
+           x="307.06314"
+           y="310.63928"
+           id="text2783"
+           xml:space="preserve"
+           style="font-size:250px;font-style:normal;font-weight:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Arial"><tspan
+             x="307.06314"
+             y="310.63928"
+             id="tspan2785">♠</tspan></text>
+        <use
+           transform="matrix(1,0,0,-1,0,1071.01)"
+           id="use2805"
+           x="0"
+           y="0"
+           width="747.34698"
+           height="1046.2856"
+           xlink:href="#text2783" />
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.0"
+   width="747.34698"
+   height="1046.2856"
+   id="svg2"
+   sodipodi:version="0.32"
+   inkscape:version="0.46"
+   sodipodi:docname="Cards-A-Spade.svg"
+   inkscape:output_extension="org.inkscape.output.svg.inkscape">
+  <metadata
+     id="metadata20">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <sodipodi:namedview
+     inkscape:window-height="667"
+     inkscape:window-width="640"
+     inkscape:pageshadow="2"
+     inkscape:pageopacity="0.0"
+     guidetolerance="10.0"
+     gridtolerance="10.0"
+     objecttolerance="10.0"
+     borderopacity="1.0"
+     bordercolor="#666666"
+     pagecolor="#ffffff"
+     id="base"
+     showgrid="false"
+     inkscape:zoom="0.44156202"
+     inkscape:cx="373.67349"
+     inkscape:cy="523.14282"
+     inkscape:window-x="154"
+     inkscape:window-y="203"
+     inkscape:current-layer="use2757" />
+  <defs
+     id="defs4">
+    <inkscape:perspective
+       sodipodi:type="inkscape:persp3d"
+       inkscape:vp_x="0 : 523.14282 : 1"
+       inkscape:vp_y="0 : 1000 : 0"
+       inkscape:vp_z="747.34698 : 523.14282 : 1"
+       inkscape:persp3d-origin="373.67349 : 348.76188 : 1"
+       id="perspective22" />
+  </defs>
+  <g
+     transform="translate(2.2448993,-0.6479052)"
+     id="layer1">
+    <g
+       transform="translate(-2.0407968,-11.714273)"
+       id="g2775">
+      <g
+         id="g2430">
+        <g
+           id="g2443">
+          <text
+             x="61.434235"
+             y="159.04405"
+             id="text2396"
+             xml:space="preserve"
+             style="font-size:144px;font-style:normal;font-weight:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Arial"><tspan
+               x="61.434235"
+               y="159.04405"
+               id="tspan2398"
+               style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:center;text-anchor:middle;font-family:Arial Narrow;-inkscape-font-specification:Arial Narrow">A</tspan></text>
+          <text
+             x="65.547516"
+             y="299.04404"
+             id="text2702"
+             xml:space="preserve"
+             style="font-size:144px;font-style:normal;font-weight:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Arial"><tspan
+               x="65.547516"
+               y="299.04404"
+               id="tspan2704"
+               style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:center;text-anchor:middle;font-family:Arial Narrow;-inkscape-font-specification:Arial Narrow">♠</tspan></text>
+          <g
+             transform="matrix(-1,0,0,-1,744.17051,1070.3281)"
+             id="use2757">
+            <text
+               x="58.665966"
+               y="158.36212"
+               id="text2418"
+               xml:space="preserve"
+               style="font-size:144px;font-style:normal;font-weight:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Arial"><tspan
+                 x="58.665966"
+                 y="158.36212"
+                 id="tspan2420"
+                 style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:center;text-anchor:middle;font-family:Arial Narrow;-inkscape-font-specification:Arial Narrow">A</tspan></text>
+            <text
+               x="62.779247"
+               y="298.36212"
+               id="text2422"
+               xml:space="preserve"
+               style="font-size:144px;font-style:normal;font-weight:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Arial"><tspan
+                 x="62.779247"
+                 y="298.36212"
+                 id="tspan2424"
+                 style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:center;text-anchor:middle;font-family:Arial Narrow;-inkscape-font-specification:Arial Narrow">♠</tspan></text>
+          </g>
+        </g>
+        <text
+           x="373.46939"
+           y="685.77356"
+           id="text2783"
+           xml:space="preserve"
+           style="font-size:500px;font-style:normal;font-weight:normal;text-align:center;text-anchor:middle;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Arial"><tspan
+             x="373.46939"
+             y="685.77356"
+             id="tspan2785">♠</tspan></text>
+      </g>
+    </g>
+  </g>
+</svg>
