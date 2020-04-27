@@ -3,22 +3,22 @@ const deck = shuffled_deck();
 const players = {
     'jabir': {
         name: 'Jabir Ibne Kamal',
-        team_name: '1',
+        team_name: 'team1',
         cards_in_hand: []
     },
     'sakib': {
         name: 'Sakib Ibne Kamal',
-        team_name: '1',
+        team_name: 'team1',
         cards_in_hand: []
     },
     'habiba': {
         name: 'Habiba Binte Kamal',
-        team_name: '2',
+        team_name: 'team2',
         cards_in_hand: []
     },
     'humaira': {
         name: 'Humaira Binte Kamal',
-        team_name: '2',
+        team_name: 'team2',
         cards_in_hand: []
     }
 };
@@ -63,8 +63,13 @@ function play_card(req, res, next) {
         const selected_hand_card = player.cards_in_hand[hand_card_index];
 
         if (is_valid_move(selected_board_card, selected_hand_card, player.team_name)) {
-            selected_board_card.occupied_by = player.team_name;
-            res.send({verdict: 'Valid'});
+            if(is_one_eyed(selected_hand_card.name)) {
+                selected_board_card.occupied_by = undefined;
+            } else {
+                selected_board_card.occupied_by = current_team;
+            }
+            current_team = alternate_team(current_team);
+            res.send({verdict: 'Valid', current_team});
         } else {
             console.log('Invalid Move');
             res.status(404).send('Invalid Move');
@@ -74,16 +79,24 @@ function play_card(req, res, next) {
     }
 }
 
-function is_valid_move(selected_board_card, selected_hand_card, team_name) {
+function is_valid_move(selected_board_card, selected_hand_card) {
     if (selected_hand_card.name[0] !== 'J') {
         return (selected_board_card.name === selected_hand_card.name)
             && (selected_board_card.occupied_by === undefined);
-    } else if (selected_hand_card.name === 'J-Clubs' || selected_hand_card.name === 'J-Diamond') {
+    } else if (is_two_eyed(selected_hand_card.name)) {
         return selected_board_card.occupied_by === undefined;
     }
     return selected_board_card.occupied_by !== undefined &&
-        selected_board_card.occupied_by !== team_name;
+        selected_board_card.occupied_by !== current_team;
 
+}
+
+function is_one_eyed(card_name) {
+    return card_name === 'J-Spade' || card_name === 'J-Heart';
+}
+
+function is_two_eyed(card_name) {
+    return card_name === 'J-Club' || card_name === 'J-Diamond';
 }
 
 module.exports = {get_hand_cards, play_card};

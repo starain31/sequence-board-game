@@ -36,8 +36,16 @@ body {
     font-size: 16px;
 }
 
-.occupied_cell {
-    background-color: saddlebrown;
+.occupied_by_team1 {
+    background-color: bisque;
+}
+
+.occupied_by_team2 {
+    background-color: darkgrey;
+}
+
+.occupied_by_team3 {
+    background-color: forestgreen;
 }
 
 .selected_card {

@@ -13,8 +13,10 @@ Vue.component('board', {
                             @play_card="play_card"
                             @update_board="update_board"
                             :class="{
-                                occupied_cell: (card.occupied_by),
-                                selected_card: (card.name === option && !card.occupied_by)
+                                occupied_by_team1: card.occupied_by === 'team1',
+                                occupied_by_team2: card.occupied_by === 'team2',
+                                occupied_by_team3: card.occupied_by === 'team3',
+                                selected_card: (card.name === option && card.occupied_by === undefined)
                             }"
                     ></board-cell>
                 </div>
