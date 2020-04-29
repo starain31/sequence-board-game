@@ -32,9 +32,70 @@ describe(`initialize game`, function () {
         ];
 
 
-        const {players} = initialize_game({teams: JSON.parse(JSON.stringify(teams)), total_number_of_player: 4, total_number_of_team: 2});
+        const {players} = initialize_game({teams: JSON.parse(JSON.stringify(teams))});
 
         expect(players[0].team_handle).toBe(players[2].team_handle);
         expect(players[1].team_handle).toBe(players[3].team_handle);
+    });
+
+    it(`Should throw error if invalid number of teams`, function () {
+        const teams = [
+            {
+                handle: 'team_a',
+                players: [
+                    {
+                        handle: 'jabir',
+                        name: 'Jabir Ibne Kamal',
+                    },
+                    {
+                        handle: 'habiba',
+                        name: 'Habiba Binte Kamal',
+                    },
+                ]
+            }
+        ];
+
+        expect(() => {initialize_game({teams: JSON.parse(JSON.stringify(teams))})}).toThrow('INVALID_NUMBER_OF_TEAM');
+    });
+
+    it(`Should throw error if invalid number of players`, function () {
+        const teams = [
+            {
+                handle: 'team_a',
+                players: [
+                    {
+                        handle: 'jabir',
+                        name: 'Jabir Ibne Kamal',
+                    },
+                    {
+                        handle: 'habiba',
+                        name: 'Habiba Binte Kamal',
+                    },
+                    {
+                        handle: 'jabir',
+                        name: 'Jabir Ibne Kamal',
+                    },
+                    {
+                        handle: 'habiba',
+                        name: 'Habiba Binte Kamal',
+                    },
+                ]
+            },
+            {
+                handle: 'team_a',
+                players: [
+                    {
+                        handle: 'jabir',
+                        name: 'Jabir Ibne Kamal',
+                    },
+                    {
+                        handle: 'habiba',
+                        name: 'Habiba Binte Kamal',
+                    },
+                ]
+            }
+        ];
+
+        expect(() => {initialize_game({teams: JSON.parse(JSON.stringify(teams))})}).toThrow('INVALID_NUMBER_OF_PLAYER');
     });
 });
