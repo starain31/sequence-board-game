@@ -1,3 +1,5 @@
+const {New_board} = require("./board");
+
 function initialize_game({teams}) {
 
     const {total_number_of_team, total_number_of_player} = number_of_player_and_team({teams});
@@ -12,7 +14,8 @@ function initialize_game({teams}) {
         team_index = (team_index + 1) % total_number_of_team;
     }
 
-    return {players};
+    const board = New_board();
+    return {players, board};
 }
 
 function number_of_player_and_team({teams}) {
@@ -33,7 +36,6 @@ function is_valid_numbered_of_team(total_number_of_team) {
     return (total_number_of_team === 2) || (total_number_of_team === 3);
 }
 
-
 function get_total_number_of_player(teams) {
     const number_of_players_in_each_team = teams[0].players.length;
     if (is_players_divided_evenly(teams) && (1 <= number_of_players_in_each_team && number_of_players_in_each_team <= 6)) {
@@ -47,6 +49,5 @@ function is_players_divided_evenly(teams) {
         return team.players.length === teams[0].players.length;
     });
 }
-
 
 module.exports = {initialize_game};

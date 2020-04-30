@@ -13,5 +13,9 @@
     "http-errors": "~1.6.2",
     "morgan": "~1.9.0",
     "vue": "^2.6.11"
+  },
+  "devDependencies": {
+    "color": "^3.1.2",
+    "colors": "^1.4.0"
   }
 }
