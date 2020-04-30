@@ -19,7 +19,7 @@ function New_board() {
             if(!is_valid_move({board_card, hand_card, team_name})) {
                 throw 'INVALID_MOVE';
             }
-            board_card.occupied_by = team_name;
+            board_card.occupied_by = occupied_by({team_name, board_card, hand_card});
         }
     }
 }
@@ -38,8 +38,20 @@ function is_valid_move({board_card, hand_card, team_name}) {
         board_card.occupied_by !== team_name;
 }
 
+function is_one_eyed(card_name) {
+    return card_name === 'J-Spade' || card_name === 'J-Heart';
+}
+
 function is_two_eyed(card_name) {
     return card_name === 'J-Club' || card_name === 'J-Diamond';
+}
+
+function occupied_by({team_name, hand_card}) {
+    if(is_one_eyed(hand_card.name)) {
+        return undefined;
+    } else {
+        return team_name;
+    }
 }
 
 module.exports = {New_board};

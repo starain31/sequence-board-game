@@ -1,53 +1,44 @@
-const {New_board} = require("./board");
+const {create_players} = require('./players');
+const {New_board} = require('./board');
+const new_deck = require('../data/game_deck.json');
 
 function initialize_game({teams}) {
-
-    const {total_number_of_team, total_number_of_player} = number_of_player_and_team({teams});
-
-    const players = [];
-    let team_index = 0;
-    for (let i = 0; i < total_number_of_player; i++) {
-        players.push({
-            ...teams[team_index].players.pop(),
-            team_handle: teams[team_index].handle
-        });
-        team_index = (team_index + 1) % total_number_of_team;
-    }
-
     const board = New_board();
-    return {players, board};
+    const players = create_players({teams});
+    const deck = shuffle(new_deck);
+    deal_cards({players, deck});
+
+    return {players, board, deck};
 }
 
-function number_of_player_and_team({teams}) {
-    const total_number_of_team = get_total_number_of_team(teams);
-    const total_number_of_player = get_total_number_of_player(teams);
-
-    return {total_number_of_player, total_number_of_team};
-}
-
-function get_total_number_of_team(teams) {
-    if (is_valid_numbered_of_team(teams.length)) {
-        return teams.length;
+function shuffle(deck) {
+    deck = JSON.parse(JSON.stringify(deck));
+    const final_deck = [];
+    while(deck.length !== 0) {
+        const random_card = Math.floor(Math.random() * deck.length);
+        final_deck.push(deck[random_card]);
+        deck.splice(random_card, 1);
     }
-    throw 'INVALID_NUMBER_OF_TEAM';
+    return final_deck;
 }
 
-function is_valid_numbered_of_team(total_number_of_team) {
-    return (total_number_of_team === 2) || (total_number_of_team === 3);
-}
+function deal_cards({players, deck}) {
+    const number_of_card_for = {
+        '2': 7,
+        '3': 6,
+        '4': 6,
+        '6': 5,
+        '8': 4,
+        '9': 4,
+        '10': 3,
+        '12': 3,
+    };
+    const number_of_card_to_be_dealt = number_of_card_for[players.number_of_players()] * players.number_of_players();
 
-function get_total_number_of_player(teams) {
-    const number_of_players_in_each_team = teams[0].players.length;
-    if (is_players_divided_evenly(teams) && (1 <= number_of_players_in_each_team && number_of_players_in_each_team <= 6)) {
-        return number_of_players_in_each_team * teams.length;
+    for (let i = 0; i < number_of_card_to_be_dealt; i++) {
+        const player = players.next_player();
+        player.take_card({card: deck.pop()});
     }
-    throw 'INVALID_NUMBER_OF_PLAYER'
-}
-
-function is_players_divided_evenly(teams) {
-    return teams.every(function (team) {
-        return team.players.length === teams[0].players.length;
-    });
 }
 
 module.exports = {initialize_game};
