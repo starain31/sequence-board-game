@@ -6,6 +6,8 @@
 const app = require('../app');
 const debug = require('debug')('sequence-board-game:server');
 const http = require('http');
+const socket_io = require('socket.io')(http);
+
 
 /**
  * Get port from environment and store in Express.
