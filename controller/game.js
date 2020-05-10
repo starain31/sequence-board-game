@@ -88,7 +88,6 @@ function is_valid_move(selected_board_card, selected_hand_card) {
     }
     return selected_board_card.occupied_by !== undefined &&
         selected_board_card.occupied_by !== current_team;
-
 }
 
 function is_one_eyed(card_name) {

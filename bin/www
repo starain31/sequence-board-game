@@ -8,7 +8,6 @@ const {socket} = require('../socket');
 const debug = require('debug')('sequence-board-game:server');
 const http = require('http');
 
-
 /**
  * Get port from environment and store in Express.
  */
@@ -20,7 +19,6 @@ app.set('port', port);
  */
 const server = http.createServer(app);
 socket.attach(server);
-
 
 /**
  * Listen on provided port, on all network interfaces.
@@ -88,4 +86,5 @@ function onListening() {
         ? 'pipe ' + addr
         : 'port ' + addr.port;
     debug('Listening on ' + bind);
+    console.log(`Listening on http://localhost:${addr.port}`);
 }
