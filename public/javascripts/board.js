@@ -34,7 +34,7 @@ Vue.component('board', {
     methods: {
         update_board() {
             this.option = undefined;
-            fetch(`http://localhost:3000/board/deck`)
+            fetch(`/board/deck`)
                 .then((response) => {
                     return response.json();
                 })
@@ -44,7 +44,7 @@ Vue.component('board', {
         },
 
         play_card(board_card_index) {
-            fetch(`http://localhost:3000/game/play?board_card_index=${JSON.stringify(board_card_index)}&hand_card_index=${this.selected_card_index}&player_handler=${player_handler}`)
+            fetch(`/game/play?board_card_index=${JSON.stringify(board_card_index)}&hand_card_index=${this.selected_card_index}&player_handler=${player_handler}`)
                 .then((response) => {
                     return response.json();
                 })
@@ -63,7 +63,7 @@ Vue.component('board', {
             this.selected_card_index = selected_card_index;
         });
 
-        fetch(`http://localhost:3000/board/deck`)
+        fetch(`/board/deck`)
             .then((response) => {
                 return response.json();
             })
@@ -129,7 +129,7 @@ Vue.component('controller', {
     },
 
     mounted() {
-        fetch(`http://localhost:3000/game/hand_cards?player_handler=${player_handler}`)
+        fetch(`/game/hand_cards?player_handler=${player_handler}`)
             .then((response) => {
                 return response.json();
             })

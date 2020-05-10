@@ -4,9 +4,9 @@
  * Module dependencies.
  */
 const app = require('../app');
+const {socket} = require('../socket');
 const debug = require('debug')('sequence-board-game:server');
 const http = require('http');
-const {io} = require('../controller/index');
 
 /**
  * Get port from environment and store in Express.
@@ -18,11 +18,7 @@ app.set('port', port);
  * Create HTTP server.
  */
 const server = http.createServer(app);
-
-/**
- * Socket server initialize
- */
-io.attach(server);
+socket.attach(server);
 
 /**
  * Listen on provided port, on all network interfaces.
