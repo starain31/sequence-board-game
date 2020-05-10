@@ -1,5 +1,3 @@
-
-
 Vue.component('lobby', {
     template: `
         <div class="lobby">
@@ -70,7 +68,7 @@ Vue.component('room', {
             <table>
                 <tr v-for="team in teams">
                     <th>{{team.handle}}</th>
-                    <td v-for="player in team.players">{{ team.handle }}</td>
+                    <td v-for="player in team.players">{{ player?player.name:'Empty'}}</td>
                     <td>
                         <button @click="join_team({team_handle: team.handle})">Join {{team.handle}}</button>
                     </td>
@@ -112,6 +110,10 @@ Vue.component('room', {
             .then((room) => {
                 this.teams = room.teams;
             });
+        const socket = io();
+        socket.on('room_updated', (room) => {
+            this.teams = room.teams;
+        });
     },
 
     props: {

@@ -1,5 +1,6 @@
 const db_room = require('../database/rooms');
 const db_user = require('../database/users');
+const socket_server = require('../socket');
 
 function create(req, res) {
     const administrator = req.session.handle;
@@ -30,11 +31,7 @@ function join(req, res) {
 
             res.send({message: 'success'});
 
-            io.on('connection', (socket) => {
-                socket.on('chat message', (msg) => {
-                    io.emit('chat message', msg);
-                });
-            });
+            socket_server.broadcast({event: 'room_updated', data: db_room.get({id})});
 
         })
         .catch(function (e) {
