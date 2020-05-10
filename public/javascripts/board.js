@@ -33,7 +33,7 @@ Vue.component('board', {
 
     methods: {
         update_board() {
-            this.option = undefined;
+
             fetch(`/board/deck`)
                 .then((response) => {
                     return response.json();
@@ -201,7 +201,7 @@ Vue.component('finger', {
 
 const event_bus = new Vue();
 
-const app = new Vue({
+new Vue({
     el: '#app',
     data: {
         player_handler: 'jabir',
