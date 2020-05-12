@@ -39,13 +39,13 @@ Vue.component('lobby', {
                 .then((response) => {
                     return response.json();
                 })
-                .then((room) => {
-                    this.room_id = room.id;
+                .then(() => {
+
                 });
         },
 
         join_room() {
-            this.room_id = this.room_id_input;
+
         }
     },
 

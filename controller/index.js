@@ -1,5 +1,3 @@
-const path = require('path');
-const {start} = require('../use_case/game');
 const inquirer = require('inquirer');
 const io = require('socket.io')();
 
@@ -21,35 +19,6 @@ const questions = [
     }
 ];
 
-const teams = [
-    {
-        handle: 'lal_dol',
-        players: [
-            {
-                handle: 'jabir',
-                name: 'Jabir Ibne Kamal',
-            },
-            {
-                handle: 'habiba',
-                name: 'Habiba Binte Kamal',
-            },
-        ]
-    },
-    {
-        handle: 'nil_dol',
-        players: [
-            {
-                handle: 'humaira',
-                name: 'Humaira Binte Kamal',
-            },
-            {
-                handle: 'sakib',
-                name: 'Sakib Ibne Kamal',
-            },
-        ]
-    }
-];
-
 const controller = {
     next_move: function () {
         return inquirer.prompt(questions).then(answers => {
@@ -68,13 +37,7 @@ const controller = {
     },
 };
 
-function start_game(req, res) {
-    res.redirect('http://localhost:3000');
-    start({controller, teams});
 
-}
-
-
-module.exports = {start_game, io};
+module.exports = {io};
 
 

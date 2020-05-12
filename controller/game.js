@@ -27,6 +27,10 @@ const number_of_card_per_player = 5;
 deal_cards({players, deck, number_of_card_per_player});
 
 function shuffled_deck() {
+    /**
+     *
+     * @type {Array}
+     */
     const temp_deck = require('../data/game_deck.json');
     const final_deck = [];
     while(temp_deck.length !== 0) {
@@ -66,8 +70,10 @@ function play_card(req, res, next) {
             if(is_one_eyed(selected_hand_card.name)) {
                 selected_board_card.occupied_by = undefined;
             } else {
+                // noinspection JSUnresolvedVariable
                 selected_board_card.occupied_by = current_team;
             }
+            // noinspection JSUndeclaredVariable,JSUnresolvedVariable,JSUnresolvedFunction
             current_team = alternate_team(current_team);
             res.send({verdict: 'Valid', current_team});
         } else {
@@ -86,6 +92,7 @@ function is_valid_move(selected_board_card, selected_hand_card) {
     } else if (is_two_eyed(selected_hand_card.name)) {
         return selected_board_card.occupied_by === undefined;
     }
+    // noinspection JSUnresolvedVariable
     return selected_board_card.occupied_by !== undefined &&
         selected_board_card.occupied_by !== current_team;
 }

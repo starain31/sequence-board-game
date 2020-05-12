@@ -12,10 +12,6 @@ function create({administrator, id, number_of_team, number_of_player_in_each_tea
     };
 }
 
-function all_rooms() {
-    return rooms;
-}
-
 function get({id}) {
     return rooms[id];
 }
@@ -36,4 +32,4 @@ function join({team_handle, id, player}) {
 }
 
 
-module.exports = {create, all_rooms, get, join};
+module.exports = {create, get, join};

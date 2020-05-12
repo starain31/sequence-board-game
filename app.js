@@ -4,8 +4,7 @@ const logger = require('morgan');
 const session = require('express-session');
 
 
-const  {sign_in_router} = require("./routes/signin");
-const  {profile_router} = require("./routes/profile");
+const  user_router = require("./routes/user");
 const  {room_router} = require("./routes/room");
 const  {game_router} = require("./routes/game");
 const  {board_router} = require("./routes/board");
@@ -24,8 +23,7 @@ app.use(session({
     saveUninitialized: false
 }));
 
-app.use('/signin', sign_in_router);
-app.use('/profile', profile_router);
+app.use('/user', user_router);
 app.use('/room', room_router);
 app.use('/game', game_router);
 app.use('/board', board_router);
