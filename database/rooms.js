@@ -3,6 +3,7 @@ const rooms = [];
 function create({administrator, id, number_of_team, number_of_player_in_each_team}) {
     rooms[id] = {
         administrator,
+        id,
         teams: Array.from({length: Number(number_of_team)}, function (value, index) {
             return {
                 handle: `TEAM_${index + 1}`,
@@ -13,21 +14,25 @@ function create({administrator, id, number_of_team, number_of_player_in_each_tea
 }
 
 function get({id}) {
+    if(rooms[id] === undefined) {
+        throw 'ROOM_DOES_NOT_EXIST'
+    }
     return rooms[id];
 }
 
 function join({team_handle, id, player}) {
+    if(rooms[id] === undefined) {
+        throw 'ROOM_DOES_NOT_EXIST'
+    }
     const team = rooms[id].teams.find(function (team) {
         return team.handle === team_handle;
     });
-    console.log(team.players);
     const empty_slot = team.players.indexOf(undefined);
 
     if(empty_slot !== -1) {
         team.players[empty_slot] = player;
         return;
     }
-    console.log({empty_slot});
     throw 'SEAT_TAKEN';
 }
 

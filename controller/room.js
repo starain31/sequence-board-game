@@ -1,6 +1,8 @@
 const db_room = require('../database/rooms');
 const db_user = require('../database/users');
 const socket_server = require('../socket');
+const {start} = require("../use_case/game");
+const {make_controller} = require('./index');
 
 function create(req, res) {
     const administrator = req.session.handle;
@@ -25,9 +27,7 @@ function join(req, res) {
             const {team_handle} = req.body;
             const {id} = req.params;
 
-            console.log({team_handle, id, player, player_handle});
             db_room.join({team_handle, id, player});
-            console.log(JSON.stringify({room: db_room.get({id})}, null, '\t'));
 
             res.send({message: 'success'});
 
@@ -35,19 +35,33 @@ function join(req, res) {
 
         })
         .catch(function (e) {
-            console.error(e);
-            res.send({message: e});
+            res.status(404).send({reason: e});
         });
 }
 
 function generate_room_id() {
-    return `${Math.floor(Math.random() * 100)}${Date.now()}`;
+    // return `${Math.floor(Math.random() * 100)}${Date.now()}`;
+    //TODO change needed
+    return '1';
 }
 
 function room(req, res) {
-    const {id} = req.params;
-    const room = db_room.get({id});
-    res.send(room);
+    try{
+        const {id} = req.params;
+        const room = db_room.get({id});
+        res.send(room);
+    }catch (e) {
+        res.status(404).send({reason: e});
+    }
 }
 
-module.exports = {create, join, room};
+function start_game(req, res) {
+    const controller = make_controller();
+    const room_id = req.params.id;
+    const room = db_room.get({id: room_id});
+
+    start({controller, teams: room.teams});
+    res.send('Game Started');
+}
+
+module.exports = {create, join, room, start_game};

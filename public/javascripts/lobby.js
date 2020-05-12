@@ -3,7 +3,8 @@ Vue.component('lobby', {
         <div class="lobby">
             <form @submit.prevent="create_room">
                 <input type="number" v-model="number_of_team" placeholder="Number of Team" required="">
-                <input type="number" v-model="number_of_player_in_each_team" placeholder="Number of Players" required="">
+                <input type="number" v-model="number_of_player_in_each_team" placeholder="Number of Players"
+                       required="">
                 <input type="submit" value="Create Room">
             </form>
             <form @submit.prevent="join_room">
@@ -39,12 +40,13 @@ Vue.component('lobby', {
                 .then((response) => {
                     return response.json();
                 })
-                .then(() => {
-
+                .then((room) => {
+                    this.room_id = room.id;
                 });
         },
 
         join_room() {
+            this.room_id = this.room_id_input;
 
         }
     },
@@ -68,13 +70,13 @@ Vue.component('room', {
             <table>
                 <tr v-for="team in teams">
                     <th>{{team.handle}}</th>
-                    <td v-for="player in team.players">{{ player?player.name:'Empty'}}</td>
+                    <td v-for="player in team.players">{{ player ? player.name : 'Empty'}}</td>
                     <td>
                         <button @click="join_team({team_handle: team.handle})">Join {{team.handle}}</button>
                     </td>
                 </tr>
             </table>
-            
+
         </div>`,
 
     data() {
@@ -104,12 +106,16 @@ Vue.component('room', {
 
     mounted() {
         fetch(`/room/${this.id}`)
-            .then((response) => {
-                return response.json();
-            })
-            .then((room) => {
-                this.teams = room.teams;
+            .then(async (response) => {
+                if (response.status === 404) {
+                    const error = await response.json();
+                    window.alert(JSON.stringify(error));
+                } else {
+                    const room = await response.json();
+                    this.teams = room.teams;
+                }
             });
+
         const socket = io();
         socket.on('room_updated', (room) => {
             this.teams = room.teams;
@@ -122,6 +128,4 @@ Vue.component('room', {
             required: true
         }
     },
-
-
 });
