@@ -66,7 +66,7 @@ Vue.component('lobby', {
 Vue.component('room', {
     template: `
         <div>
-            Room ID: {{id}}
+            Room ID: {{id}} Administrator: {{room.administrator}}
             <table>
                 <tr v-for="team in teams">
                     <th>{{team.handle}}</th>
@@ -76,15 +76,19 @@ Vue.component('room', {
                     </td>
                 </tr>
             </table>
-
+            <div>
+                <button @click="start_game">Start Game</button>
+            </div>
         </div>`,
 
     data() {
         return {
+            room: undefined,
             teams: undefined
         }
 
     },
+
     methods: {
         join_team({team_handle}) {
             fetch(`/room/${this.id}/join`,
@@ -102,6 +106,28 @@ Vue.component('room', {
                     console.log(data);
                 });
         },
+
+        start_game() {
+            fetch(`/room/${this.id}/start`,
+                {
+                    method: 'post',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                })
+                .then((response) => {
+                    console.log({response});
+                    return response.json();
+                })
+                .then((data) => {
+                    console.log({data});
+                });
+
+            const socket = io();
+            socket.on('game_initialized', () => {
+                window.location = '/index.html';
+            })
+        }
     },
 
     mounted() {
@@ -112,6 +138,7 @@ Vue.component('room', {
                     window.alert(JSON.stringify(error));
                 } else {
                     const room = await response.json();
+                    this.room = room;
                     this.teams = room.teams;
                 }
             });

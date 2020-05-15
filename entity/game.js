@@ -1,6 +1,6 @@
 const {create_players} = require('./players');
 const {New_board} = require('./board');
-const new_deck = require('../data/game_deck.json');
+const new_deck = JSON.parse(JSON.stringify(require('../data/game_deck.json')));
 
 function initialize_game({teams}) {
     const board = New_board();
@@ -12,7 +12,7 @@ function initialize_game({teams}) {
 }
 
 function shuffle(deck) {
-    deck = JSON.parse(JSON.stringify(deck));
+    // deck = JSON.parse(JSON.stringify(deck));
     const final_deck = [];
     while(deck.length !== 0) {
         const random_card = Math.floor(Math.random() * deck.length);

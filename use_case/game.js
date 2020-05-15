@@ -4,12 +4,13 @@ require('colors');
 
 async function start({teams, controller}) {
 
-    const {players, board, deck} = initialize_game({teams: JSON.parse(JSON.stringify(teams))});
+    //const {players, board, deck} = initialize_game({teams: JSON.parse(JSON.stringify(teams))});
 
     let player = players.next_player();
 
     while (true) {
         try {
+            console.log({board});
             controller.broadcast_board({board});
             controller.log({message: player});
 

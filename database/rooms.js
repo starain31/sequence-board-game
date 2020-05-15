@@ -7,7 +7,7 @@ function create({administrator, id, number_of_team, number_of_player_in_each_tea
         teams: Array.from({length: Number(number_of_team)}, function (value, index) {
             return {
                 handle: `TEAM_${index + 1}`,
-                players: Array.from({length: Number(number_of_player_in_each_team)}).fill(undefined)
+                players: Array(Number(number_of_player_in_each_team)).fill(undefined)
             }
         }),
     };
@@ -35,6 +35,5 @@ function join({team_handle, id, player}) {
     }
     throw 'SEAT_TAKEN';
 }
-
 
 module.exports = {create, get, join};

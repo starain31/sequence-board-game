@@ -1,5 +1,6 @@
 function create_players({teams}) {
     const {total_number_of_team, total_number_of_player} = number_of_player_and_team({teams});
+    console.log({total_number_of_team, total_number_of_player});
 
     const players = [];
     let team_index = 0;
@@ -60,7 +61,7 @@ function is_valid_numbered_of_team(total_number_of_team) {
 }
 
 function get_total_number_of_player(teams) {
-    const number_of_players_in_each_team = teams[0].players.length;
+    const number_of_players_in_each_team = number_of_valid_players(teams[0].players);
     if (is_players_divided_evenly(teams) && (1 <= number_of_players_in_each_team && number_of_players_in_each_team <= 6)) {
         return number_of_players_in_each_team * teams.length;
     }
@@ -69,8 +70,20 @@ function get_total_number_of_player(teams) {
 
 function is_players_divided_evenly(teams) {
     return teams.every(function (team) {
-        return team.players.length === teams[0].players.length;
+        console.log({players: team.players});
+        console.log({number_of_valid_players: number_of_valid_players(team.players)});
+        return number_of_valid_players(team.players) === number_of_valid_players(teams[0].players);
     });
+}
+
+function number_of_valid_players(players) {
+    let number_of_player = 0;
+    for(const player of players) {
+        if(player !== null) {
+            number_of_player += 1;
+        }
+    }
+    return number_of_player;
 }
 
 module.exports = {create_players};

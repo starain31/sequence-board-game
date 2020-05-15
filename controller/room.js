@@ -1,8 +1,10 @@
 const db_room = require('../database/rooms');
 const db_user = require('../database/users');
 const socket_server = require('../socket');
+const {initialize_game} = require("../entity/game");
 const {start} = require("../use_case/game");
 const {make_controller} = require('./index');
+
 
 function create(req, res) {
     const administrator = req.session.handle;
@@ -29,10 +31,11 @@ function join(req, res) {
 
             db_room.join({team_handle, id, player});
 
+            req.session.room_id = id;
+
             res.send({message: 'success'});
 
             socket_server.broadcast({event: 'room_updated', data: db_room.get({id})});
-
         })
         .catch(function (e) {
             res.status(404).send({reason: e});
@@ -55,13 +58,25 @@ function room(req, res) {
     }
 }
 
-function start_game(req, res) {
-    const controller = make_controller();
-    const room_id = req.params.id;
-    const room = db_room.get({id: room_id});
+async function start_game(req, res) {
+    try {
+        const room_id = req.params.id;
 
-    start({controller, teams: room.teams});
-    res.send('Game Started');
+        const room = db_room.get({id: room_id});
+
+        const {players, board, deck} = initialize_game({teams: JSON.parse(JSON.stringify(room.teams))});
+
+        console.log(players);
+        room.players = players;
+        room.board = board;
+        room.deck = deck;
+        room.status = 'GAME_INITIALIZE';
+        socket_server.broadcast({event: 'game_initialized', data: true});
+
+        res.send({message: 'GAME_INITIALIZE'});
+    } catch (e) {
+        console.error(e);
+    }
 }
 
 module.exports = {create, join, room, start_game};
