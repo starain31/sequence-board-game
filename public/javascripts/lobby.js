@@ -47,7 +47,6 @@ Vue.component('lobby', {
 
         join_room() {
             this.room_id = this.room_id_input;
-
         }
     },
 
@@ -122,11 +121,6 @@ Vue.component('room', {
                 .then((data) => {
                     console.log({data});
                 });
-
-            const socket = io();
-            socket.on('game_initialized', () => {
-                window.location = '/index.html';
-            })
         }
     },
 
@@ -147,6 +141,9 @@ Vue.component('room', {
         socket.on('room_updated', (room) => {
             this.teams = room.teams;
         });
+        socket.on('game_initialized', () => {
+            window.location = '/index.html';
+        })
     },
 
     props: {

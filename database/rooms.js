@@ -36,4 +36,15 @@ function join({team_handle, id, player}) {
     throw 'SEAT_TAKEN';
 }
 
-module.exports = {create, get, join};
+function get_player_controller({room}) {
+    return room.player_controller;
+}
+
+function get_a_player({player_controller, handle}) {
+    return player_controller.players.find(function (player) {
+        return player.handle === handle;
+    });
+    throw 'PLAYER_DOES_NOT_BELONG_TO_THIS_ROOM'
+}
+
+module.exports = {create, get, join, get_player_controller, get_a_player};

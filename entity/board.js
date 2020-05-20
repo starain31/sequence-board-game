@@ -15,6 +15,7 @@ function New_board() {
             return deck;
         },
         play: function ({index, team_name, hand_card}) {
+            console.log({index, team_name, hand_card});
             const board_card = deck[index.row][index.column];
             if(!is_valid_move({board_card, hand_card, team_name})) {
                 throw 'INVALID_MOVE';

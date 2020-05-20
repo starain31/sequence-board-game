@@ -1,6 +1,5 @@
-function create_players({teams}) {
+function create_player_controller({teams}) {
     const {total_number_of_team, total_number_of_player} = number_of_player_and_team({teams});
-    console.log({total_number_of_team, total_number_of_player});
 
     const players = [];
     let team_index = 0;
@@ -11,8 +10,13 @@ function create_players({teams}) {
 
     let next_player_index = -1;
     return {
+        players,
         next_player: function () {
             next_player_index = (next_player_index + 1) % total_number_of_player;
+            return players[next_player_index];
+        },
+        previous_player: function() {
+            next_player_index = (total_number_of_player + next_player_index - 1) % total_number_of_player;
             return players[next_player_index];
         },
         number_of_players: function () {
@@ -70,8 +74,6 @@ function get_total_number_of_player(teams) {
 
 function is_players_divided_evenly(teams) {
     return teams.every(function (team) {
-        console.log({players: team.players});
-        console.log({number_of_valid_players: number_of_valid_players(team.players)});
         return number_of_valid_players(team.players) === number_of_valid_players(teams[0].players);
     });
 }
@@ -86,4 +88,4 @@ function number_of_valid_players(players) {
     return number_of_player;
 }
 
-module.exports = {create_players};
+module.exports = {create_player_controller};

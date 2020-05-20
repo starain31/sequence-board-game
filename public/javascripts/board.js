@@ -33,7 +33,6 @@ Vue.component('board', {
 
     methods: {
         update_board() {
-
             fetch(`/board/deck`)
                 .then((response) => {
                     return response.json();
@@ -44,15 +43,20 @@ Vue.component('board', {
         },
 
         play_card(board_card_index) {
-            fetch(`/game/play?board_card_index=${JSON.stringify(board_card_index)}&hand_card_index=${this.selected_card_index}&player_handler=${player_handler}`)
-                .then((response) => {
+            fetch(`/game/play?board_card_index=${JSON.stringify(board_card_index)}&hand_card_index=${this.selected_card_index}`)
+                .then(async (response) => {
+                    if(response.status !== 200) {
+                        throw await response.text();
+                    }
                     return response.json();
                 })
                 .then((data) => {
-                    console.log(data);
+                    //TO-DO
+                    //baje coding
+                    event_bus.$emit('hand_card_updated', data.cards);
                 })
                 .catch((e) => {
-                    console.error(e);
+                    alert(e);
                 });
         }
     },
@@ -76,7 +80,7 @@ Vue.component('board', {
 
         const socket = io();
         socket.on('board_updated', (data) => {
-            this.deck = data.deck;
+            this.deck = data;
         });
     }
 });
@@ -134,13 +138,17 @@ Vue.component('controller', {
     },
 
     mounted() {
-        fetch(`/game/hand_cards?player_handler=${player_handler}`)
+        fetch(`/game/hand_cards`)
             .then((response) => {
                 return response.json();
             })
             .then((data) => {
                 this.cards_in_hand = data.cards_in_hand;
             });
+
+        event_bus.$on('hand_card_updated', (cards) => {
+            this.cards_in_hand = cards;
+        });
     }
 });
 

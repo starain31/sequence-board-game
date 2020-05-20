@@ -1,18 +1,17 @@
-const {create_players} = require('./players');
+const {create_player_controller} = require('./players');
 const {New_board} = require('./board');
 const new_deck = JSON.parse(JSON.stringify(require('../data/game_deck.json')));
 
 function initialize_game({teams}) {
     const board = New_board();
-    const players = create_players({teams});
+    const player_controller = create_player_controller({teams});
     const deck = shuffle(new_deck);
-    deal_cards({players, deck});
+    deal_cards({player_controller, deck});
 
-    return {players, board, deck};
+    return {player_controller, board, deck};
 }
 
 function shuffle(deck) {
-    // deck = JSON.parse(JSON.stringify(deck));
     const final_deck = [];
     while(deck.length !== 0) {
         const random_card = Math.floor(Math.random() * deck.length);
@@ -22,7 +21,7 @@ function shuffle(deck) {
     return final_deck;
 }
 
-function deal_cards({players, deck}) {
+function deal_cards({player_controller, deck}) {
     const number_of_card_for = {
         '2': 7,
         '3': 6,
@@ -33,10 +32,10 @@ function deal_cards({players, deck}) {
         '10': 3,
         '12': 3,
     };
-    const number_of_card_to_be_dealt = number_of_card_for[players.number_of_players()] * players.number_of_players();
+    const number_of_card_to_be_dealt = number_of_card_for[player_controller.number_of_players()] * player_controller.number_of_players();
 
     for (let i = 0; i < number_of_card_to_be_dealt; i++) {
-        const player = players.next_player();
+        const player = player_controller.next_player();
         player.take_card({card: deck.pop()});
     }
 }

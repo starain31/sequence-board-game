@@ -13,7 +13,7 @@ function authenticate(req, res, next) {
             if(!is_valid_user) {
                 req.session.error = 'Authentication failed, please check your '
                     + ' username and password.';
-                return res.redirect('back');
+                return res.status(400).send('INVALID_USER_NAME_OR_PASSWORD');
             }
             req.session.regenerate(async function() {
                 req.session.handle = req.body.handle;

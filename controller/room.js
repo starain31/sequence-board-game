@@ -23,11 +23,13 @@ function create(req, res) {
 
 function join(req, res) {
     const player_handle = req.session.handle;
+    console.log({player_handle});
 
     db_user.get_user({handle: player_handle})
         .then(function (player) {
             const {team_handle} = req.body;
             const {id} = req.params;
+            player['handle'] = player_handle;
 
             db_room.join({team_handle, id, player});
 
@@ -64,10 +66,9 @@ async function start_game(req, res) {
 
         const room = db_room.get({id: room_id});
 
-        const {players, board, deck} = initialize_game({teams: JSON.parse(JSON.stringify(room.teams))});
+        const {player_controller, board, deck} = initialize_game({teams: JSON.parse(JSON.stringify(room.teams))});
 
-        console.log(players);
-        room.players = players;
+        room.player_controller = player_controller;
         room.board = board;
         room.deck = deck;
         room.status = 'GAME_INITIALIZE';

@@ -31,7 +31,10 @@ Vue.component('signin', {
                     },
                     body: JSON.stringify({handle: this.handle, password: this.password})
                 })
-                .then(() => {
+                .then(async (response) => {
+                    if(response.status !== 200) {
+                        throw await response.text();
+                    }
                     window.location = '/views/lobby.html'
                 })
                 .catch(function (e) {
