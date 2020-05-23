@@ -81,6 +81,8 @@ Vue.component('board', {
         const socket = io();
         socket.on('board_updated', (data) => {
             this.deck = data;
+            this.option = undefined;
+            this.selected_card_index = undefined;
         });
     }
 });

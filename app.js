@@ -18,6 +18,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
     cookie: { expires: 60 * 60 * 1000 },
     secret: 'work hard',
+    resave: false,
     rolling: true,
     saveUninitialized: false
 }));
