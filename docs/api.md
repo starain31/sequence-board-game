@@ -48,7 +48,7 @@ One page of the tables you created or sat at, newest first. Query `page` (from 1
   "id": "friday-night-k3m9", "name": "Friday Night", "created_at": "…", "administrator": "jabir",
   "administrator_name": "Jabir ibne kamal",
   "team_count": 2, "players_per_team": 1, "seats_taken": 2,
-  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90},
+  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90, "dead_cards": "manual", "exchanges_per_turn": null},
   "your_team": 0,                      // null when you only created the table
   "status": "playing",                 // open (no game yet) | playing | finished
   "started_at": "…", "last_move_at": "…", "finished_at": null, "winner_team": null,
@@ -67,8 +67,10 @@ Rooms, seats, games and every move are stored in PostgreSQL, so tables and games
 
 ### `POST /room/create` (auth)
 Body `{number_of_team, number_of_player_in_each_team, name?, mode?, history?, highlights?, auto_draw_dead?,
-turn_seconds?}`. Counts are numbers or numeric strings; `mode` is `"standard"` or `"training"`; `turn_seconds` is a
-whole number from 15 to 600; the other settings are booleans (or `"true"` / `"false"`).
+turn_seconds?, dead_cards?, exchanges_per_turn?}`. Counts are numbers or numeric strings; `mode` is `"standard"` or
+`"training"`; `turn_seconds` is a whole number from 15 to 600; `dead_cards` is `"manual"` or `"indicator"`;
+`exchanges_per_turn` is `null` or `"unlimited"`, or a whole number from 1 to 10; the other settings are booleans (or
+`"true"` / `"false"`).
 `200 {id}`. `id` is the table's code: a slug of its name plus a 4-character suffix, such as `"friday-night-k3m9"`.
 Without a name the table gets a generated one ("Lucky Otter"). The signed-in user becomes `administrator` (the host).
 Errors are JSON `{error, message}`: `401 NOT_SIGNED_IN`, `400 UNSUPPORTED_TABLE` for a table size the rules
@@ -83,12 +85,14 @@ Settings and their defaults:
 | `history` | `false` | Off: `GET /room/:id/turns` is `403 HISTORY_DISABLED` and the GameView's `log` keeps only the latest move |
 | `highlights` | `false` | Off: clients don't light up legal cells (the server only reports the setting) |
 | `turn_seconds` | `90` | Seconds each player has for a turn. Clients offer 30, 60, 90, 120 and 180, or any whole number from 15 to 600 |
-| `auto_draw_dead` | `false` | On: a dead card is exchanged automatically when its owner's turn starts (their one exchange for that turn), logged as `{kind: "exchange", auto: true, …}` |
+| `dead_cards` | `"manual"` | `"manual"`: nothing marks dead cards; players spot them and ask to exchange them, and the server refuses a card that isn't dead (`NOT_DEAD`). The GameView's `can_exchange` is then true whenever the current player has exchanges left, so it never gives a dead card away. `"indicator"`: clients mark dead cards in the hand, and `can_exchange` is true only when one is there |
+| `exchanges_per_turn` | `null` (unlimited) | How many dead cards a player may exchange in one turn: `null` for unlimited, or 1 to 10. Rooms created before this setting allow 1 |
+| `auto_draw_dead` | `false` | With `dead_cards: "indicator"` only. On: dead cards are exchanged automatically when their owner's turn starts (as many as `exchanges_per_turn` allows, counted as theirs), logged as `{kind: "exchange", auto: true, …}` |
 
 Room codes created before slugs are numeric strings (`"731791746123232"`) and still work.
 
 ### `PATCH /room/:id/settings` (auth, host)
-Body `{name?, mode?, history?, highlights?, auto_draw_dead?, turn_seconds?}`; missing keys keep their value. The code never changes.
+Body `{name?, mode?, history?, highlights?, auto_draw_dead?, turn_seconds?, dead_cards?, exchanges_per_turn?}`; missing keys keep their value. The code never changes.
 `200` with the Room, and `room_updated` is broadcast. `401 NOT_SIGNED_IN`, `403 NOT_HOST`, `404 ROOM_NOT_FOUND`,
 `409 GAME_ALREADY_STARTED` (settings are fixed once the game starts), `400 INVALID_NAME | INVALID_SETTINGS`.
 
@@ -102,7 +106,7 @@ Body `{name?, mode?, history?, highlights?, auto_draw_dead?, turn_seconds?}`; mi
   "administrator_name": "Jabir ibne kamal",  // the host's display name, for messages
   "id": "friday-night-k3m9",
   "name": "Friday Night",
-  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90},
+  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90, "dead_cards": "manual", "exchanges_per_turn": null},
   "created_at": "2026-10-15T05:48:22.696Z",
   "teams": [
     { "handle": "TEAM_1", "players": [ {"handle": "jabir", "name": "Jabir ibne kamal"}, null ] },
@@ -164,6 +168,7 @@ The GameView for the session's user. Anyone may watch; only seated players see a
   "viewer": "jabir",                  // null for a spectator
   "hand": ["4-Spade", "J-Club", …],
   "can_exchange": false, "can_pass": false,
+  "exchanges_left": null,             // current player only: dead card exchanges left this turn (null: unlimited)
   "deck_count": 90,
   "sequences": [{"team": 0, "cells": [{"row": 0, "column": 1}, …]}],
   "winner": null,
@@ -176,7 +181,7 @@ The GameView for the session's user. Anyone may watch; only seated players see a
   "away": ["sakib"],                 // seated players whose game page isn't open
   "presence_token": "q9…",           // seated players only: send it with the socket's join_game (null for spectators)
   "server_time": "2026-10-15T06:55:21.002Z",       // the server's clock now, to run a turn timer despite clock skew
-  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90},
+  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90, "dead_cards": "manual", "exchanges_per_turn": null},
   "log": [{"kind": "place", "turn": 1, "player": "Jabir ibne kamal", "team": 0, "card": "4-Spade", "pos": {"row": 1, "column": 5}, "wild": false}, …]
 }
 ```
@@ -207,7 +212,7 @@ before anyone has opened the game, for example) starts paused. Presence is kept 
 is away until their page reconnects, which it does by itself. Every arrival and departure broadcasts `game_updated`.
 
 ### `POST /room/:id/game/play` (auth) — body `{hand_index, row, column}`
-### `POST /room/:id/game/exchange` (auth) — body `{hand_index}` (a dead card, once per turn, before playing)
+### `POST /room/:id/game/exchange` (auth) — body `{hand_index}` (a dead card, up to `exchanges_per_turn` per turn, before playing)
 ### `POST /room/:id/game/pass` (auth) — only when no card can be played or exchanged
 
 Each applies the move for the current player, draws a replacement card, and returns the new GameView. Every change

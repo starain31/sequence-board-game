@@ -156,25 +156,32 @@ describe('room rules', function () {
 
     it('exchanges a dead card when its owner\'s turn starts, with auto_draw_dead', function () {
         const game = with_dead_card_for_next_player({auto_draw_dead: true});
-        expect(game.rules).toEqual({auto_draw_dead: true});
+        expect(game.rules).toEqual({auto_draw_dead: true, exchanges_per_turn: 1});
         const next = apply_move(game, 't0p0', {type: 'play', hand_index: 0, target: {row: 5, column: 5}});
         expect(next.current).toBe(1);
         expect(next.hands[1]).not.toContain('6-Diamond');
         expect(next.hands[1]).toHaveLength(7);
         expect(next.discard).toContain('6-Diamond');
-        expect(next.exchanged_this_turn).toBe(true);
+        expect(next.exchanges_this_turn).toBe(1);
         expect(next.log.at(-1)).toEqual({kind: 'exchange', turn: 2, player: 'Player 1-0', team: 1, card: '6-Diamond', auto: true});
+    });
+
+    it('never auto-draws when players find dead cards themselves', function () {
+        const game = with_dead_card_for_next_player({auto_draw_dead: true, dead_cards: 'manual'});
+        expect(game.rules.auto_draw_dead).toBe(false);
+        const next = apply_move(game, 't0p0', {type: 'play', hand_index: 0, target: {row: 5, column: 5}});
+        expect(next.hands[1][0]).toBe('6-Diamond');
     });
 
     it('leaves dead cards alone without the rule, and for games stored before rules existed', function () {
         const game = with_dead_card_for_next_player({});
-        expect(game.rules).toEqual({auto_draw_dead: false});
+        expect(game.rules).toEqual({auto_draw_dead: false, exchanges_per_turn: 1});
         const legacy = Object.assign({}, game);
         delete legacy.rules;
         for (const state of [game, legacy]) {
             const next = apply_move(state, 't0p0', {type: 'play', hand_index: 0, target: {row: 5, column: 5}});
             expect(next.hands[1][0]).toBe('6-Diamond');
-            expect(next.exchanged_this_turn).toBe(false);
+            expect(next.exchanges_this_turn).toBe(0);
         }
     });
 
@@ -230,6 +237,106 @@ describe('random_move', function () {
         });
         const dead = Object.assign({}, game, {chips, hands: [['6-Diamond'], game.hands[1]]});
         expect(random_move(dead)).toEqual({type: 'exchange', hand_index: 0});
-        expect(random_move(Object.assign({}, dead, {exchanged_this_turn: true}))).toEqual({type: 'pass'});
+        expect(random_move(Object.assign({}, dead, {exchanges_this_turn: 1}))).toEqual({type: 'pass'});
+    });
+});
+
+describe('dead card exchanges', function () {
+    // The current player holds two dead cards (6-Diamond, 7-Club: both their cells covered) and five other cards.
+    function with_two_dead_cards(rules) {
+        const game = create_game({teams: teams_of(2, 1), rules});
+        const chips = game.chips.map(function (row) {
+            return row.slice();
+        });
+        board_deck.forEach(function (row, r) {
+            row.forEach(function (cell, c) {
+                if (cell.name === '6-Diamond' || cell.name === '7-Club') chips[r][c] = 1;
+            });
+        });
+        const rest = game.hands[0].filter(function (card) {
+            return card !== '6-Diamond' && card !== '7-Club';
+        }).slice(0, 5);
+        const deck = game.deck.filter(function (card) {
+            return card !== '6-Diamond' && card !== '7-Club';
+        });
+        const hands = [['6-Diamond', '7-Club'].concat(rest), game.hands[1]];
+        return Object.assign({}, game, {chips, hands, deck});
+    }
+
+    it('allows one exchange per turn by default, and for games stored before the limit', function () {
+        const legacy = with_two_dead_cards({});
+        delete legacy.rules;
+        delete legacy.exchanges_this_turn;
+        for (const game of [with_two_dead_cards({}), with_two_dead_cards({exchanges_per_turn: 1}), legacy]) {
+            const once = apply_move(game, 't0p0', {type: 'exchange', hand_index: 0});
+            expect(once.current).toBe(0);
+            expect(function () {
+                apply_move(once, 't0p0', {type: 'exchange', hand_index: 1});
+            }).toThrow('You can exchange one dead card per turn');
+        }
+        // An old game mid-turn, which kept a flag instead of a count.
+        const flagged = Object.assign({}, legacy, {exchanged_this_turn: true});
+        expect(function () {
+            apply_move(flagged, 't0p0', {type: 'exchange', hand_index: 1});
+        }).toThrow('per turn');
+    });
+
+    it('allows any number of exchanges per turn when unlimited, and resets the count each turn', function () {
+        const game = with_two_dead_cards({exchanges_per_turn: null});
+        expect(game.rules.exchanges_per_turn).toBe(null);
+        expect(view_for(game, 't0p0').exchanges_left).toBe(null);
+        const twice = apply_move(apply_move(game, 't0p0', {type: 'exchange', hand_index: 0}), 't0p0', {type: 'exchange', hand_index: 1});
+        expect(twice.exchanges_this_turn).toBe(2);
+        expect(twice.hands[0]).not.toContain('6-Diamond');
+        expect(twice.hands[0]).not.toContain('7-Club');
+        expect(twice.hands[0]).toHaveLength(7);
+    });
+
+    it('stops at a custom limit', function () {
+        const game = with_two_dead_cards({exchanges_per_turn: 2});
+        const hands = game.hands.map(function (h) {
+            return h.slice();
+        });
+        hands[0][2] = '6-Diamond';
+        const three = Object.assign({}, game, {hands, deck: game.deck.filter(function (card) {
+            return card !== '6-Diamond';
+        })});
+        let state = apply_move(three, 't0p0', {type: 'exchange', hand_index: 0});
+        expect(view_for(state, 't0p0').exchanges_left).toBe(1);
+        state = apply_move(state, 't0p0', {type: 'exchange', hand_index: 1});
+        expect(view_for(state, 't0p0', {dead_cards: 'manual'}).can_exchange).toBe(false);
+        expect(function () {
+            apply_move(state, 't0p0', {type: 'exchange', hand_index: 2});
+        }).toThrow('You can exchange 2 dead cards per turn');
+    });
+
+    it('refuses to exchange a card that is not dead', function () {
+        const game = with_two_dead_cards({exchanges_per_turn: null});
+        expect(function () {
+            apply_move(game, 't0p0', {type: 'exchange', hand_index: 2});
+        }).toThrow("isn't dead");
+    });
+
+    it('auto-draws every dead card the limit allows', function () {
+        const game = with_two_dead_cards({auto_draw_dead: true, exchanges_per_turn: null, dead_cards: 'indicator'});
+        // Two turns later it is the first player's turn again, so dead cards are drawn for them.
+        const passed = Object.assign({}, game, {current: 1, turn: 2});
+        const hands = passed.hands.map(function (h) {
+            return h.slice();
+        });
+        hands[1][0] = 'J-Club';
+        const next = apply_move(Object.assign({}, passed, {hands}), 't1p0', {type: 'play', hand_index: 0, target: {row: 5, column: 5}});
+        expect(next.current).toBe(0);
+        expect(next.exchanges_this_turn).toBe(2);
+        expect(next.log.filter(function (entry) {
+            return entry.kind === 'exchange' && entry.auto;
+        })).toHaveLength(2);
+    });
+
+    it('with dead cards found by hand, a player may ask for an exchange without the view saying a card is dead', function () {
+        const game = create_game({teams: teams_of(2, 1), rules: {exchanges_per_turn: null}});
+        expect(view_for(game, 't0p0').can_exchange).toBe(false);
+        expect(view_for(game, 't0p0', {dead_cards: 'manual'}).can_exchange).toBe(true);
+        expect(view_for(game, 't1p0', {dead_cards: 'manual'}).can_exchange).toBe(false);
     });
 });
