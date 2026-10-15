@@ -378,6 +378,21 @@ describe_with_database('rooms and table games', function () {
         expect(state.turn_started_at).toBe(played.turn_started_at);
     });
 
+    test('the turn deadline is the turn start plus the room\'s timer, stored and in the view', async function () {
+        const id = await open_room('alice', 2, 1, {turn_seconds: 45});
+        await join('alice', id, 'TEAM_1');
+        await join('bob', id, 'TEAM_2');
+        const started = (await agents.alice.post(`/room/${id}/start`).expect(200)).body;
+        expect(Date.parse(started.turn_deadline) - Date.parse(started.turn_started_at)).toBe(45000);
+        const stored = await require('../database/games').get_deadline({room_id: id});
+        expect(stored.toISOString()).toBe(started.turn_deadline);
+
+        const move = await legal_play(id);
+        const played = (await agents[move.handle].post(`/room/${id}/game/play`).send(move.body).expect(200)).body;
+        expect(Date.parse(played.turn_deadline) - Date.parse(played.turn_started_at)).toBe(45000);
+        expect((await require('../database/games').get_deadline({room_id: id})).toISOString()).toBe(played.turn_deadline);
+    });
+
     describe('game modes', function () {
         async function started(mode) {
             const id = (await agents.alice.post('/room/create')

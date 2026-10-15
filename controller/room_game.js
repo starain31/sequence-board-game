@@ -52,6 +52,13 @@ async function find_game(id, client) {
     return {room, game};
 }
 
+// When the current turn's timer runs out: its start plus the room's turn_seconds. Null once the game is over or
+// for a game stored before turns were stamped.
+function turn_deadline(room, game) {
+    if (game.winner !== null || !game.turn_started_at) return null;
+    return new Date(Date.parse(game.turn_started_at) + room.settings.turn_seconds * 1000);
+}
+
 // The game as `handle` sees it, under the room's settings. Hints exist only in training games, and only for the
 // player whose turn it is, so a standard game never sends one.
 function view(room, game, handle) {
@@ -60,7 +67,14 @@ function view(room, game, handle) {
         ? suggest_move(game)
         : null;
     // server_time lets clients run the turn timer from their own clock even when it is off.
-    return Object.assign(seen, {name: room.name, hint, turn_started_at: game.turn_started_at || null, server_time: new Date().toISOString()});
+    const deadline = turn_deadline(room, game);
+    return Object.assign(seen, {
+        name: room.name,
+        hint,
+        turn_started_at: game.turn_started_at || null,
+        turn_deadline: deadline === null ? null : deadline.toISOString(),
+        server_time: new Date().toISOString(),
+    });
 }
 
 // The rules engine has no clock, so the time each turn started is stamped here, into the stored state (which
@@ -104,7 +118,7 @@ async function start(req, res) {
         if (!db_room.is_full(room)) throw new GameError('TABLE_NOT_FULL', 'Every seat must be taken before the game can start.');
 
         const created = stamp_turn(undefined, create_game({teams: room.teams, rules: room.settings}));
-        await db_game.create({room_id: id, state: created, client});
+        await db_game.create({room_id: id, state: created, turn_deadline: turn_deadline(room, created), client});
         return {room, game: created};
     });
     res.send(view(room, game, handle));
@@ -138,7 +152,7 @@ function move_handler(build_move) {
             if (!seated) throw new GameError('NOT_A_PLAYER', "You don't have a seat in this game.");
 
             const played = stamp_turn(game, apply_move(game, handle, move));
-            await db_game.record_move({room_id: id, previous: game, next: played, handle, move, client});
+            await db_game.record_move({room_id: id, previous: game, next: played, handle, move, turn_deadline: turn_deadline(room, played), client});
             return {room, next: played};
         });
         res.send(view(room, next, handle));
