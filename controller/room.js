@@ -54,7 +54,7 @@ async function update_settings(req, res) {
             throw new RoomError('ROOM_NOT_FOUND', 'There is no table with that code.');
         }
         if (room.administrator !== handle) {
-            throw new RoomError('NOT_HOST', 'Only the player who opened this table can change its settings.');
+            throw new RoomError('NOT_HOST', `Only ${room.administrator_name}, who opened this table, can change its settings.`);
         }
         if (await db_game.get({room_id: id, client}) !== undefined) {
             throw new RoomError('GAME_ALREADY_STARTED', "The game has started, so the table's settings are fixed.");
@@ -97,6 +97,7 @@ async function room_payload({id}) {
         id: room.id,
         name: room.name,
         administrator: room.administrator,
+        administrator_name: room.administrator_name,
         settings: room.settings,
         teams: room.teams,
         created_at: room.created_at,

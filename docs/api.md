@@ -46,6 +46,7 @@ One page of the tables you created or sat at, newest first. Query `page` (from 1
  "page": 1, "per_page": 10, "total": 23, "pages": 3,
  "rooms": [{
   "id": "friday-night-k3m9", "name": "Friday Night", "created_at": "…", "administrator": "jabir",
+  "administrator_name": "Jabir ibne kamal",
   "team_count": 2, "players_per_team": 1, "seats_taken": 2,
   "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90},
   "your_team": 0,                      // null when you only created the table
@@ -97,7 +98,8 @@ Body `{name?, mode?, history?, highlights?, auto_draw_dead?, turn_seconds?}`; mi
 ```jsonc
 // Room
 {
-  "administrator": "jabir",
+  "administrator": "jabir",                  // the host's handle
+  "administrator_name": "Jabir ibne kamal",  // the host's display name, for messages
   "id": "friday-night-k3m9",
   "name": "Friday Night",
   "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90},

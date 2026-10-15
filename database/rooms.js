@@ -76,12 +76,13 @@ async function update({id, name, settings, client = pool}) {
     );
 }
 
-// {id, name, administrator, team_count, players_per_team, created_at, settings: {mode, history, highlights, auto_draw_dead, turn_seconds},
+// {id, name, administrator, administrator_name, team_count, players_per_team, created_at, settings: {mode, history, highlights, auto_draw_dead, turn_seconds},
 //  teams: [{handle, players: [{handle, name} | null]}]} or undefined. `lock` holds the room row until the
 // transaction ends, which serialises joins, starts and settings changes.
 async function get({id, client = pool, lock = false}) {
     const {rows} = await client.query(
-        `SELECT rooms.id, rooms.name, users.handle AS administrator, rooms.team_count, rooms.players_per_team,
+        `SELECT rooms.id, rooms.name, users.handle AS administrator, users.name AS administrator_name,
+                rooms.team_count, rooms.players_per_team,
                 rooms.created_at, ${SETTINGS_SELECT}
          FROM rooms JOIN users ON users.id = rooms.administrator_id
          WHERE rooms.id = $1 ${lock ? 'FOR UPDATE OF rooms' : ''}`,
@@ -159,7 +160,8 @@ async function count_for_user({user_id, client = pool}) {
 // A user's rooms with how far each got: the columns of GET /user/rooms. $1 is the user's id. `your_team` is
 // null when the user only created the room.
 const USER_ROOMS_SELECT = `
-        SELECT rooms.id, rooms.name, rooms.created_at, administrators.handle AS administrator, ${SETTINGS_SELECT},
+        SELECT rooms.id, rooms.name, rooms.created_at, administrators.handle AS administrator,
+               administrators.name AS administrator_name, ${SETTINGS_SELECT},
                rooms.team_count, rooms.players_per_team,
                my_seat.team AS your_team,
                (SELECT count(*)::INT FROM room_seats WHERE room_seats.room_id = rooms.id) AS seats_taken,
