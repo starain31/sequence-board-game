@@ -2,7 +2,8 @@ const express = require('express');
 const path = require('path');
 const logger = require('morgan');
 const session = require('express-session');
-const {ping} = require('./database/pool');
+const PgSessionStore = require('connect-pg-simple')(session);
+const {pool, ping} = require('./database/pool');
 
 
 const  user_router = require("./routes/user");
@@ -17,11 +18,20 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
-    cookie: { expires: 60 * 60 * 1000 },
-    secret: 'work hard',
-    resave: true,
+    // Sessions live in PostgreSQL, so a restart doesn't sign everyone out.
+    store: new PgSessionStore({pool, tableName: 'session'}),
+    secret: session_secret(),
+    resave: false,
+    saveUninitialized: false,
+    // Each request pushes the expiry back, so only a week of inactivity signs a user out.
     rolling: true,
-    saveUninitialized: false
+    cookie: {
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        httpOnly: true,
+        sameSite: 'lax',
+        // Set COOKIE_SECURE=true when the app is served over HTTPS.
+        secure: process.env.COOKIE_SECURE === 'true',
+    },
 }));
 
 app.get('/health', function (req, res) {
@@ -38,5 +48,15 @@ app.use('/user', user_router);
 app.use('/room', room_router);
 app.use('/game', game_router);
 app.use('/board', board_router);
+
+function session_secret() {
+    if (process.env.SESSION_SECRET) {
+        return process.env.SESSION_SECRET;
+    }
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('SESSION_SECRET must be set in production.');
+    }
+    return 'development-only-session-secret';
+}
 
 module.exports = app;
