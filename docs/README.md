@@ -25,11 +25,10 @@ dead cards, sequences, winning). An older global test game (`controller/game.js`
 | Area | State |
 |---|---|
 | Sign up / sign in / sign out | Works; accounts and sessions in PostgreSQL, scrypt hashes, rate limited |
-| Create/join room, live room updates | Works, with gaps |
-| Start a game from a room | Not implemented |
-| Play a move over HTTP | Broken (500 on every valid move) |
-| Turn order, dealing, drawing | Only in `entity/` + `use_case/` (terminal runners) |
-| Sequence detection, win condition, dead cards | Not implemented anywhere |
-| Persistence | Accounts, sessions, rooms, seats, games and turn history (only the legacy dev game is in memory) |
+| Create/join room, live room updates | Works; named tables with slug codes and host-set options |
+| Room options | Move history, legal-move highlights, dead-card auto-draw |
+| Start a game from a room, play it | Works (`/room/:id/start`, `/room/:id/game/*`) |
+| Turn order, dealing, drawing, sequences, winning, dead cards | Works in table games (`entity/sequence_game.js`) |
+| Persistence | Accounts, sessions, rooms, seats, settings, games and turn history (only the legacy dev game is in memory) |
 | CORS | Not configured |
 | Local environment | `docker compose up` (Postgres, backend, frontend), see [architecture.md](architecture.md#run) |
