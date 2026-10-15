@@ -36,12 +36,14 @@ it is `undefined` when not signed in (the request still succeeds).
 ```jsonc
 // Room
 {
+  "administrator": "jabir",
   "id": "731791746123232",
   "administrator": "jabir",
   "teams": [
     { "handle": "TEAM_1", "players": [ {"handle": "jabir", "name": "Jabir ibne kamal"}, null ] },
     { "handle": "TEAM_2", "players": [ null, null ] }
-  ]
+  ],
+  "game_started": false
 }
 ```
 Team handles are `TEAM_1 … TEAM_n`. Empty seats are `null`. Player objects are `{handle, name}`.
@@ -52,9 +54,50 @@ Body `{team_handle}`. Takes the first empty seat in that team. Always HTTP `200`
 - `{"message": "SEAT_TAKEN"}` when the team is full.
 - `{"message": "ALREADY_SEATED"}` when you already have a seat at this table.
 - `{"message": "NOT_SIGNED_IN"}` without a session.
+- `{"message": "GAME_ALREADY_STARTED"}` once the table's game has started.
 - `{"message": "ROOM_NOT_FOUND"}` or `{"message": "TEAM_NOT_FOUND"}`.
 
-There are no endpoints to leave a room, list rooms, or start a game.
+There are no endpoints to leave a room or list rooms.
+
+## Table game
+
+A full game for a room, run by the server (`entity/sequence_game.js`). Errors are JSON `{error, message}`, where
+`message` is readable by players: `401 NOT_SIGNED_IN`, `403 NOT_A_PLAYER`, `404 ROOM_NOT_FOUND | GAME_NOT_FOUND`,
+`409 GAME_ALREADY_STARTED | TABLE_NOT_FULL | NOT_YOUR_TURN | GAME_OVER`, and `400` for rule errors (`CELL_MISMATCH`,
+`CELL_OCCUPIED`, `CORNER`, `OWN_CHIP`, `LOCKED_CHIP`, `NOT_DEAD`, `HAS_MOVES`, …).
+
+### `POST /room/:id/start` (auth)
+Deals a game once every seat is taken. Any seated player, or the table's creator, may start it. Seats alternate
+teams (T1, T2, [T3,] T1, …), and the first seat moves first. Returns a GameView and broadcasts `room_updated` and
+`game_updated`.
+
+### `GET /room/:id/game`
+The GameView for the session's user. Anyone may watch; only seated players see a hand (their own).
+
+```jsonc
+// GameView
+{
+  "team_count": 2, "sequences_to_win": 2,
+  "players": [{"handle": "jabir", "name": "Jabir ibne kamal", "team": 0, "hand_count": 7}, …],
+  "current_player": "jabir",          // null once the game is won
+  "turn": 1,
+  "board": [[{"name": "Blank", "team": null}, {"name": "6-Diamond", "team": 0}, …], …],   // 10×10, team is 0|1|2|null
+  "viewer": "jabir",                  // null for a spectator
+  "hand": ["4-Spade", "J-Club", …],
+  "can_exchange": false, "can_pass": false,
+  "deck_count": 90,
+  "sequences": [{"team": 0, "cells": [{"row": 0, "column": 1}, …]}],
+  "winner": null,
+  "log": [{"kind": "place", "turn": 1, "player": "Jabir ibne kamal", "team": 0, "card": "4-Spade", "pos": {"row": 1, "column": 5}, "wild": false}, …]
+}
+```
+
+### `POST /room/:id/game/play` (auth) — body `{hand_index, row, column}`
+### `POST /room/:id/game/exchange` (auth) — body `{hand_index}` (a dead card, once per turn, before playing)
+### `POST /room/:id/game/pass` (auth) — only when no card can be played or exchanged
+
+Each applies the move for the current player, draws a replacement card, and returns the new GameView. Every change
+broadcasts `game_updated`.
 
 ## Board
 
@@ -78,7 +121,7 @@ Query string:
 Responses:
 - Invalid move: `404`, plain text `Invalid Move`.
 - Valid move: `200 {verdict: "Valid", team}`. The chip is placed (or removed by a one-eyed jack) and the played card
-  is replaced from the deck. There is still no turn order.
+  is replaced from the deck. There is still no turn order; use the table game for real play.
 - (Before the fix, every valid move was a `500` because
   `current_team` is undefined. The board is not changed and no card is drawn.
 
@@ -89,9 +132,10 @@ Same origin and port as HTTP, default path `/socket.io`. The server also serves 
 
 | Event (server → client) | Payload | When |
 |---|---|---|
-| `room_updated` | Room (see above) | After every successful join, sent to **every** connected socket, not just that room |
+| `room_updated` | Room (see above) | After every successful join or game start, sent to **every** connected socket |
+| `game_updated` | `{room_id}` | After a table game starts or changes. Re-fetch `GET /room/:id/game`; the payload has no hands |
 
-No client → server events are handled, and there are no game or board events. Clients must re-fetch
+No client → server events are handled. For the legacy game there are no events, so clients must re-fetch
 `/board/deck` and `/game/hand_cards` themselves.
 
 ## Static assets
