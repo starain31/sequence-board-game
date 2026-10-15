@@ -63,19 +63,23 @@ function play_card(req, res, next) {
         const board_card_column_index = Number(board_card_index.column);
         const hand_card_index = Number(req.query.hand_card_index);
 
-        const selected_board_card = board_deck[board_card_row_index][board_card_column_index];
+        const selected_board_card = (board_deck[board_card_row_index] || [])[board_card_column_index];
         const selected_hand_card = player.cards_in_hand[hand_card_index];
 
         if (is_valid_move(selected_board_card, selected_hand_card, player.team_name)) {
             if(is_one_eyed(selected_hand_card.name)) {
                 selected_board_card.occupied_by = undefined;
             } else {
-                // noinspection JSUnresolvedVariable
-                selected_board_card.occupied_by = current_team;
+                selected_board_card.occupied_by = player.team_name;
             }
-            // noinspection JSUndeclaredVariable,JSUnresolvedVariable,JSUnresolvedFunction
-            current_team = alternate_team(current_team);
-            res.send({verdict: 'Valid', current_team});
+            // Replace the played card from the deck, or drop it when the deck is empty.
+            const drawn_card = deck.pop();
+            if (drawn_card === undefined) {
+                player.cards_in_hand.splice(hand_card_index, 1);
+            } else {
+                player.cards_in_hand[hand_card_index] = drawn_card;
+            }
+            res.send({verdict: 'Valid', team: player.team_name});
         } else {
             console.log('Invalid Move');
             res.status(404).send('Invalid Move');
@@ -85,16 +89,18 @@ function play_card(req, res, next) {
     }
 }
 
-function is_valid_move(selected_board_card, selected_hand_card) {
+function is_valid_move(selected_board_card, selected_hand_card, team_name) {
+    if (selected_board_card === undefined || selected_hand_card === undefined || selected_board_card.name === 'Blank') {
+        return false;
+    }
     if (selected_hand_card.name[0] !== 'J') {
         return (selected_board_card.name === selected_hand_card.name)
             && (selected_board_card.occupied_by === undefined);
     } else if (is_two_eyed(selected_hand_card.name)) {
         return selected_board_card.occupied_by === undefined;
     }
-    // noinspection JSUnresolvedVariable
     return selected_board_card.occupied_by !== undefined &&
-        selected_board_card.occupied_by !== current_team;
+        selected_board_card.occupied_by !== team_name;
 }
 
 function is_one_eyed(card_name) {
