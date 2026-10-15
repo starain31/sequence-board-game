@@ -132,6 +132,9 @@ the rules it started with. Display settings (`mode`, `history`, `highlights`) ar
 the current player's view also carries a hint from `entity/hints.js`. Only the host can start the game.
 With history off, `turns` is still written (the "Your tables" move count uses it) but never served.
 
+The rules engine has no clock: `controller/room_game.js` stamps `turn_started_at` into the stored state whenever
+a new turn begins (an exchange keeps the turn and its time), so turn timers survive restarts too.
+
 Everything a client needs to resume is in these tables: who sat where, the settings, and the full game state.
 After a restart, `GET /user/rooms` lists a player's tables and `GET /room/:id/game` returns the game as it was.
 

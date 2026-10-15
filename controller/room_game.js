@@ -59,7 +59,15 @@ function view(room, game, handle) {
     const hint = room.settings.mode === 'training' && seen.current_player !== null && seen.current_player === handle
         ? suggest_move(game)
         : null;
-    return Object.assign(seen, {name: room.name, hint});
+    // server_time lets clients run the turn timer from their own clock even when it is off.
+    return Object.assign(seen, {name: room.name, hint, turn_started_at: game.turn_started_at || null, server_time: new Date().toISOString()});
+}
+
+// The rules engine has no clock, so the time each turn started is stamped here, into the stored state (which
+// keeps it across restarts). An exchange keeps the turn, so it keeps the time too.
+function stamp_turn(previous, next, now = new Date()) {
+    if (previous !== undefined && previous.turn === next.turn && previous.current === next.current) return next;
+    return Object.assign({}, next, {turn_started_at: now.toISOString()});
 }
 
 function signed_in_handle(req) {
@@ -95,7 +103,7 @@ async function start(req, res) {
         }
         if (!db_room.is_full(room)) throw new GameError('TABLE_NOT_FULL', 'Every seat must be taken before the game can start.');
 
-        const created = create_game({teams: room.teams, rules: room.settings});
+        const created = stamp_turn(undefined, create_game({teams: room.teams, rules: room.settings}));
         await db_game.create({room_id: id, state: created, client});
         return {room, game: created};
     });
@@ -129,7 +137,7 @@ function move_handler(build_move) {
             });
             if (!seated) throw new GameError('NOT_A_PLAYER', "You don't have a seat in this game.");
 
-            const played = apply_move(game, handle, move);
+            const played = stamp_turn(game, apply_move(game, handle, move));
             await db_game.record_move({room_id: id, previous: game, next: played, handle, move, client});
             return {room, next: played};
         });

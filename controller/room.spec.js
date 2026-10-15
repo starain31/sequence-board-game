@@ -251,7 +251,10 @@ describe_with_database('rooms and table games', function () {
             const room = (await request(restarted).get(`/room/${id}`)).body;
             expect(room.teams[1].players[0].handle).toBe('dave');
             expect(room).toMatchObject({name: 'Resume me', game_started: true, settings: {highlights: false, auto_draw_dead: true}});
-            expect((await request(restarted).get(`/room/${id}/game`).set('Cookie', cookie)).body).toEqual(before);
+            const after = (await request(restarted).get(`/room/${id}/game`).set('Cookie', cookie)).body;
+            // Everything but the clock reading is the same, including when the turn started.
+            expect(Object.assign({}, after, {server_time: null})).toEqual(Object.assign({}, before, {server_time: null}));
+            expect(after.turn_started_at).toEqual(expect.any(String));
             const {rows: [stored]} = await database.pool.query('SELECT state FROM games WHERE room_id = $1', [id]);
             expect(stored.state.rules).toEqual({auto_draw_dead: true});
         });
@@ -291,6 +294,27 @@ describe_with_database('rooms and table games', function () {
             {move_number: 1, kind: 'exchange', card: state.hands[state.current][0], cell_row: null, events: [{kind: 'exchange', card: state.hands[state.current][0]}]},
             {move_number: 2, kind: 'pass', card: null, cell_row: null, events: [{kind: 'pass'}]},
         ]);
+    });
+
+    test('the game view says when the current turn started, and an exchange keeps it', async function () {
+        const id = await open_room('alice', 2, 1);
+        await join('alice', id, 'TEAM_1');
+        await join('bob', id, 'TEAM_2');
+        const started = (await agents.alice.post(`/room/${id}/start`).expect(200)).body;
+        expect(Date.parse(started.turn_started_at)).toBeLessThanOrEqual(Date.parse(started.server_time));
+        expect(Date.now() - Date.parse(started.server_time)).toBeLessThan(5000);
+
+        await new Promise(function (resolve) {
+            setTimeout(resolve, 20);
+        });
+        const move = await legal_play(id);
+        const played = (await agents[move.handle].post(`/room/${id}/game/play`).send(move.body).expect(200)).body;
+        expect(Date.parse(played.turn_started_at)).toBeGreaterThan(Date.parse(started.turn_started_at));
+
+        // A stored exchange: same player, same turn, so the clock keeps running.
+        const db_game = require('../database/games');
+        const state = await db_game.get({room_id: id});
+        expect(state.turn_started_at).toBe(played.turn_started_at);
     });
 
     describe('game modes', function () {
