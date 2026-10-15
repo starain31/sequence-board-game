@@ -13,18 +13,74 @@ function team_index(handle, team_count) {
     return index >= 0 && index < team_count ? index : -1;
 }
 
-async function create({id, administrator_id, team_count, players_per_team, client = pool}) {
+// The settings columns, as {setting: column}. See DEFAULT_SETTINGS in entity/room.js.
+const SETTING_COLUMNS = {
+    history: 'history_enabled',
+    highlights: 'highlights_enabled',
+    auto_draw_dead: 'auto_draw_dead',
+};
+
+const SETTINGS_SELECT = Object.entries(SETTING_COLUMNS).map(function ([key, column]) {
+    return `rooms.${column} AS setting_${key}`;
+}).join(', ');
+
+// Moves the setting_* columns of a row into row.settings.
+function read_settings(row) {
+    row.settings = {};
+    Object.keys(SETTING_COLUMNS).forEach(function (key) {
+        row.settings[key] = row[`setting_${key}`];
+        delete row[`setting_${key}`];
+    });
+    return row;
+}
+
+const UNIQUE_VIOLATION = '23505';
+
+// Inserts the room with the first free code `make_id()` gives (codes are random, so a clash is rare).
+// Returns the code. Not for use inside a transaction: a clash aborts it.
+async function create({make_id, name, administrator_id, team_count, players_per_team, settings, client = pool, attempts = 5}) {
+    const columns = Object.values(SETTING_COLUMNS);
+    const values = Object.keys(SETTING_COLUMNS).map(function (key) {
+        return settings[key];
+    });
+    for (let attempt = 1; ; attempt++) {
+        const id = make_id();
+        try {
+            await client.query(
+                `INSERT INTO rooms (id, name, administrator_id, team_count, players_per_team, ${columns.join(', ')})
+                 VALUES ($1, $2, $3, $4, $5, ${columns.map(function (_, i) {
+                    return `$${i + 6}`;
+                }).join(', ')})`,
+                [id, name, administrator_id, team_count, players_per_team].concat(values)
+            );
+            return id;
+        } catch (e) {
+            if (e.code !== UNIQUE_VIOLATION || attempt >= attempts) throw e;
+        }
+    }
+}
+
+// Changes a room's name and settings. Call inside the transaction that checked the game hasn't started.
+async function update({id, name, settings, client = pool}) {
+    const keys = Object.keys(SETTING_COLUMNS);
     await client.query(
-        'INSERT INTO rooms (id, administrator_id, team_count, players_per_team) VALUES ($1, $2, $3, $4)',
-        [id, administrator_id, team_count, players_per_team]
+        `UPDATE rooms SET name = $2, ${keys.map(function (key, i) {
+            return `${SETTING_COLUMNS[key]} = $${i + 3}`;
+        }).join(', ')}
+         WHERE id = $1`,
+        [String(id), name].concat(keys.map(function (key) {
+            return settings[key];
+        }))
     );
 }
 
-// {id, administrator, team_count, players_per_team, created_at, teams: [{handle, players: [{handle, name} | null]}]}
-// or undefined. `lock` holds the room row until the transaction ends, which serialises joins and starts.
+// {id, name, administrator, team_count, players_per_team, created_at, settings: {history, highlights, auto_draw_dead},
+//  teams: [{handle, players: [{handle, name} | null]}]} or undefined. `lock` holds the room row until the
+// transaction ends, which serialises joins, starts and settings changes.
 async function get({id, client = pool, lock = false}) {
     const {rows} = await client.query(
-        `SELECT rooms.id, users.handle AS administrator, rooms.team_count, rooms.players_per_team, rooms.created_at
+        `SELECT rooms.id, rooms.name, users.handle AS administrator, rooms.team_count, rooms.players_per_team,
+                rooms.created_at, ${SETTINGS_SELECT}
          FROM rooms JOIN users ON users.id = rooms.administrator_id
          WHERE rooms.id = $1 ${lock ? 'FOR UPDATE OF rooms' : ''}`,
         [String(id)]
@@ -33,6 +89,7 @@ async function get({id, client = pool, lock = false}) {
     if (room === undefined) {
         return undefined;
     }
+    read_settings(room);
     const seats = await client.query(
         `SELECT room_seats.team, room_seats.seat, users.handle, users.name
          FROM room_seats JOIN users ON users.id = room_seats.user_id
@@ -92,7 +149,7 @@ async function join({id, team_handle: handle, user, client}) {
 // user only created the room.
 async function list_for_user({user_id, limit = 50, client = pool}) {
     const {rows} = await client.query(
-        `SELECT rooms.id, rooms.created_at, administrators.handle AS administrator,
+        `SELECT rooms.id, rooms.name, rooms.created_at, administrators.handle AS administrator, ${SETTINGS_SELECT},
                 rooms.team_count, rooms.players_per_team,
                 my_seat.team AS your_team,
                 (SELECT count(*)::INT FROM room_seats WHERE room_seats.room_id = rooms.id) AS seats_taken,
@@ -110,7 +167,7 @@ async function list_for_user({user_id, limit = 50, client = pool}) {
          LIMIT $2`,
         [user_id, limit]
     );
-    return rows;
+    return rows.map(read_settings);
 }
 
-module.exports = {create, get, is_seated, is_full, join, list_for_user};
+module.exports = {create, update, get, is_seated, is_full, join, list_for_user};
