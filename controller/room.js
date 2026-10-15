@@ -33,8 +33,8 @@ function join(req, res) {
 
         })
         .catch(function (e) {
-            console.error(e);
-            res.send({message: e});
+            if (typeof e !== 'string') console.error(e);
+            res.send({message: typeof e === 'string' ? e : 'ERROR'});
         });
 }
 
