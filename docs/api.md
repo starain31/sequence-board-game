@@ -207,7 +207,7 @@ Nobody plays for a player who isn't at the table. A seated player is at the tabl
 that sent `join_game` (see [Socket.IO](#socketio)); a dropped socket counts as gone after a 4 second grace period.
 When the current player is away, their turn is **paused**: `turn_deadline` is null, `turn_paused` is true and
 `turn_time_left_ms` says how long they'll have. The game waits on their turn until they're back, then the timer runs
-on from where it stopped, with at least 15 seconds left. A turn that starts while its player is away (the first turn,
+on from exactly where it stopped (the time spent away doesn't count, and there is no minimum). A turn that starts while its player is away (the first turn,
 before anyone has opened the game, for example) starts paused. Presence is kept in memory, so after a restart everyone
 is away until their page reconnects, which it does by itself. Every arrival and departure broadcasts `game_updated`.
 

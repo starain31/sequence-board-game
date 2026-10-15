@@ -53,9 +53,6 @@ async function find_game(id, client) {
     return {room, game};
 }
 
-// A player who comes back to a paused turn gets at least this long to play it.
-const RESUME_MIN_MS = 15000;
-
 // When the current turn's time is up: its start plus the room's turn_seconds plus the time it spent paused.
 function turn_end(room, game) {
     return Date.parse(game.turn_started_at) + room.settings.turn_seconds * 1000 + (game.turn_paused_ms || 0);
@@ -80,12 +77,11 @@ function pause_turn(game, now = new Date()) {
     return Object.assign({}, game, {turn_paused_at: now.toISOString()});
 }
 
-// The current player is back: the timer runs on from where it stopped, with at least RESUME_MIN_MS left.
+// The current player is back: the timer runs on from exactly where it stopped. The time spent away is added to the
+// turn, so the time left is what it was when they left.
 function resume_turn(room, game, now = new Date()) {
     if (!game.turn_paused_at) return game;
-    let paused_ms = (game.turn_paused_ms || 0) + Math.max(0, now - Date.parse(game.turn_paused_at));
-    const left = Date.parse(game.turn_started_at) + room.settings.turn_seconds * 1000 + paused_ms - now;
-    if (left < RESUME_MIN_MS) paused_ms += RESUME_MIN_MS - left;
+    const paused_ms = (game.turn_paused_ms || 0) + Math.max(0, now - Date.parse(game.turn_paused_at));
     return Object.assign({}, game, {turn_paused_at: null, turn_paused_ms: paused_ms});
 }
 
