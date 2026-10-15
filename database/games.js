@@ -13,13 +13,14 @@ async function get({room_id, client = pool, lock = false}) {
     return rows[0] === undefined ? undefined : rows[0].state;
 }
 
-async function create({room_id, state, client = pool}) {
-    await client.query('INSERT INTO games (room_id, state) VALUES ($1, $2)', [room_id, state]);
+async function create({room_id, state, turn_deadline = null, client = pool}) {
+    await client.query('INSERT INTO games (room_id, state, turn_deadline) VALUES ($1, $2, $3)', [room_id, state, turn_deadline]);
 }
 
 // Saves the state after an accepted move and appends the move to `turns`. Call inside the transaction that
-// read `previous` with a lock.
-async function record_move({room_id, previous, next, handle, move, client}) {
+// read `previous` with a lock. `turn_deadline` is when the next turn's timer runs out (null once the game is
+// over); `timed_out` marks a move made for a player who ran out of time.
+async function record_move({room_id, previous, next, handle, move, turn_deadline = null, timed_out = false, client}) {
     const player = previous.players[previous.current];
     const card = move.type === 'pass' ? null : previous.hands[previous.current][move.hand_index];
     const cell = move.type === 'play' ? move.target : {row: null, column: null};
@@ -28,24 +29,42 @@ async function record_move({room_id, previous, next, handle, move, client}) {
     const {rows} = await client.query(
         `UPDATE games
          SET state = $2, updated_at = now(), winner_team = $3,
-             finished_at = CASE WHEN $3::SMALLINT IS NULL THEN NULL ELSE now() END
+             finished_at = CASE WHEN $3::SMALLINT IS NULL THEN NULL ELSE now() END,
+             turn_deadline = CASE WHEN $3::SMALLINT IS NULL THEN $4::TIMESTAMPTZ ELSE NULL END
          WHERE room_id = $1
          RETURNING id`,
-        [room_id, next, next.winner]
+        [room_id, next, next.winner, turn_deadline]
     );
     await client.query(
-        `INSERT INTO turns (game_id, move_number, turn, user_id, team, kind, card, cell_row, cell_column, events)
+        `INSERT INTO turns (game_id, move_number, turn, user_id, team, kind, card, cell_row, cell_column, events, timed_out)
          VALUES ($1, (SELECT count(*) + 1 FROM turns WHERE game_id = $1), $2,
-                 (SELECT id FROM users WHERE handle = $3), $4, $5, $6, $7, $8, $9)`,
-        [rows[0].id, previous.turn, handle, player.team, move.type, card, cell.row, cell.column, JSON.stringify(events)]
+                 (SELECT id FROM users WHERE handle = $3), $4, $5, $6, $7, $8, $9, $10)`,
+        [rows[0].id, previous.turn, handle, player.team, move.type, card, cell.row, cell.column, JSON.stringify(events), timed_out]
     );
+}
+
+// Games in progress whose turn timer ran out at or before `now`, oldest deadline first: [room_id].
+async function overdue({now = new Date(), client = pool} = {}) {
+    const {rows} = await client.query(
+        `SELECT room_id FROM games WHERE finished_at IS NULL AND turn_deadline <= $1 ORDER BY turn_deadline`,
+        [now]
+    );
+    return rows.map(function (row) {
+        return row.room_id;
+    });
+}
+
+// When the game's current turn runs out, or null.
+async function get_deadline({room_id, client = pool}) {
+    const {rows} = await client.query('SELECT turn_deadline FROM games WHERE room_id = $1', [String(room_id)]);
+    return rows[0] === undefined ? null : rows[0].turn_deadline;
 }
 
 // The room's moves in play order, with who made them. Only public information: no hands, no deck.
 async function list_turns({room_id, client = pool}) {
     const {rows} = await client.query(
         `SELECT turns.move_number, turns.turn, users.handle, users.name, turns.team, turns.kind, turns.card,
-                turns.cell_row, turns.cell_column, turns.events, turns.created_at
+                turns.cell_row, turns.cell_column, turns.events, turns.timed_out, turns.created_at
          FROM turns
          JOIN games ON games.id = turns.game_id
          JOIN users ON users.id = turns.user_id
@@ -63,9 +82,10 @@ async function list_turns({room_id, client = pool}) {
             card: row.card,
             cell: row.cell_row === null ? null : {row: row.cell_row, column: row.cell_column},
             events: row.events,
+            timed_out: row.timed_out,
             created_at: row.created_at,
         };
     });
 }
 
-module.exports = {get, create, record_move, list_turns};
+module.exports = {get, create, record_move, list_turns, overdue, get_deadline};

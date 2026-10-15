@@ -378,6 +378,79 @@ describe_with_database('rooms and table games', function () {
         expect(state.turn_started_at).toBe(played.turn_started_at);
     });
 
+    test('the turn deadline is the turn start plus the room\'s timer, stored and in the view', async function () {
+        const id = await open_room('alice', 2, 1, {turn_seconds: 45});
+        await join('alice', id, 'TEAM_1');
+        await join('bob', id, 'TEAM_2');
+        const started = (await agents.alice.post(`/room/${id}/start`).expect(200)).body;
+        expect(Date.parse(started.turn_deadline) - Date.parse(started.turn_started_at)).toBe(45000);
+        const stored = await require('../database/games').get_deadline({room_id: id});
+        expect(stored.toISOString()).toBe(started.turn_deadline);
+
+        const move = await legal_play(id);
+        const played = (await agents[move.handle].post(`/room/${id}/game/play`).send(move.body).expect(200)).body;
+        expect(Date.parse(played.turn_deadline) - Date.parse(played.turn_started_at)).toBe(45000);
+        expect((await require('../database/games').get_deadline({room_id: id})).toISOString()).toBe(played.turn_deadline);
+    });
+
+    describe('turn timer', function () {
+        // Required in each test, never while Jest collects them: loading it earlier would open the database pool
+        // before use_test_schema() points it at the test schema, and the tests would run against the real database.
+        function room_game() {
+            return require('./room_game');
+        }
+
+        async function started_game() {
+            const id = await open_room('alice', 2, 1, {turn_seconds: 30});
+            await join('alice', id, 'TEAM_1');
+            await join('bob', id, 'TEAM_2');
+            await agents.alice.post(`/room/${id}/start`).expect(200);
+            return id;
+        }
+
+        function overdue(id) {
+            return database.pool.query("UPDATE games SET turn_deadline = now() - interval '1 second' WHERE room_id = $1", [id]);
+        }
+
+        test('plays a random card for a player who runs out of time', async function () {
+            const id = await started_game();
+            const before = await require('../database/games').get({room_id: id});
+            const late = before.players[before.current];
+
+            // Not overdue yet: nothing happens.
+            expect(await room_game().expire_turn(id)).toBe(false);
+            await overdue(id);
+            expect(await room_game().expire_overdue_turns()).toBeGreaterThanOrEqual(1);
+
+            const after = await require('../database/games').get({room_id: id});
+            expect(after.turn).toBe(before.turn + 1);
+            expect(after.current).not.toBe(before.current);
+            expect(after.hands[before.current]).toHaveLength(before.hands[before.current].length);
+            const placed = after.log.find(function (entry) {
+                return entry.kind === 'place' || entry.kind === 'remove';
+            });
+            expect(placed).toMatchObject({player: late.name, timed_out: true});
+            expect(before.hands[before.current]).toContain(placed.card);
+
+            const {rows} = await database.pool.query(
+                'SELECT kind, timed_out FROM turns JOIN games ON games.id = turns.game_id WHERE games.room_id = $1', [id]);
+            expect(rows).toEqual([{kind: 'play', timed_out: true}]);
+            // The next player has a fresh deadline, so a second sweep does nothing.
+            expect(await room_game().expire_turn(id)).toBe(false);
+            const view = (await agents.alice.get(`/room/${id}/game`)).body;
+            expect(Date.parse(view.turn_deadline)).toBeGreaterThan(Date.now() + 25000);
+        });
+
+        test('leaves finished games and games without a deadline alone', async function () {
+            const id = await started_game();
+            await database.pool.query("UPDATE games SET turn_deadline = NULL WHERE room_id = $1", [id]);
+            expect(await room_game().expire_turn(id)).toBe(false);
+            await overdue(id);
+            await database.pool.query("UPDATE games SET winner_team = 0, finished_at = now() WHERE room_id = $1", [id]);
+            expect(await require('../database/games').overdue()).not.toContain(id);
+        });
+    });
+
     describe('game modes', function () {
         async function started(mode) {
             const id = (await agents.alice.post('/room/create')

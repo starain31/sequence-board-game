@@ -216,6 +216,33 @@ function can_pass(state) {
 }
 
 /**
+ * The move made for a player whose turn timer ran out: a random card from their hand that can be played, on a
+ * random legal cell. With no playable card, a dead card is exchanged first (when allowed), else the turn passes.
+ * One call gives one move; an exchange keeps the turn, so call again until the turn ends.
+ */
+function random_move(state, random = Math.random) {
+    const hand = state.hands[state.current];
+    const playable = [];
+    hand.forEach(function (_, hand_index) {
+        const targets = legal_targets(state, hand_index);
+        if (targets.length > 0) playable.push({hand_index, targets});
+    });
+    if (playable.length > 0) {
+        const {hand_index, targets} = playable[Math.floor(random() * playable.length)];
+        return {type: 'play', hand_index, target: targets[Math.floor(random() * targets.length)]};
+    }
+    if (can_exchange(state)) {
+        return {
+            type: 'exchange',
+            hand_index: hand.findIndex(function (card) {
+                return is_dead_card(state, card);
+            }),
+        };
+    }
+    return {type: 'pass'};
+}
+
+/**
  * Applies a move for the player with `handle`. Throws RuleError for illegal moves.
  * @param move {type: 'play', hand_index, target: {row, column}} | {type: 'exchange', hand_index} | {type: 'pass'}
  */
@@ -457,6 +484,7 @@ module.exports = {
     in_bounds,
     can_exchange,
     RuleError,
+    random_move,
     create_game,
     apply_move,
     view_for,

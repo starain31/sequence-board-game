@@ -1,4 +1,4 @@
-const {create_game, apply_move, view_for, legal_targets, find_new_sequences, empty_chip_grid} = require('./sequence_game');
+const {create_game, apply_move, view_for, legal_targets, find_new_sequences, empty_chip_grid, random_move} = require('./sequence_game');
 const board_deck = require('../data/board_deck.json');
 
 function teams_of(team_count, players_per_team) {
@@ -190,5 +190,46 @@ describe('room rules', function () {
             return entry.turn;
         })).toEqual([3]);
         expect(view.settings).toEqual(settings);
+    });
+});
+
+describe('random_move', function () {
+    function sequence(values) {
+        let i = 0;
+        return function () {
+            return values[i++ % values.length];
+        };
+    }
+
+    it('plays a random playable card on a random legal cell', function () {
+        const game = create_game({teams: teams_of(2, 1)});
+        for (let i = 0; i < 20; i++) {
+            const move = random_move(game);
+            expect(move.type).toBe('play');
+            expect(legal_targets(game, move.hand_index)).toContainEqual(move.target);
+            expect(function () {
+                apply_move(game, 't0p0', move);
+            }).not.toThrow();
+        }
+        // The first draw picks the card, the second the cell.
+        const hand = ['J-Club', '6-Diamond'];
+        const fixed = Object.assign({}, game, {hands: [hand, game.hands[1]]});
+        expect(random_move(fixed, sequence([0.99, 0]))).toEqual({type: 'play', hand_index: 1, target: legal_targets(fixed, 1)[0]});
+    });
+
+    it('exchanges a dead card when nothing can be played, then passes when that is done', function () {
+        const game = create_game({teams: teams_of(2, 1)});
+        const chips = game.chips.map(function (row) {
+            return row.slice();
+        });
+        // Both 6-Diamond cells are covered, so a hand of only 6-Diamond has nothing to play.
+        board_deck.forEach(function (row, r) {
+            row.forEach(function (cell, c) {
+                if (cell.name === '6-Diamond') chips[r][c] = 0;
+            });
+        });
+        const dead = Object.assign({}, game, {chips, hands: [['6-Diamond'], game.hands[1]]});
+        expect(random_move(dead)).toEqual({type: 'exchange', hand_index: 0});
+        expect(random_move(Object.assign({}, dead, {exchanged_this_turn: true}))).toEqual({type: 'pass'});
     });
 });
