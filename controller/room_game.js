@@ -16,6 +16,7 @@ const STATUS_BY_ERROR = {
     TABLE_NOT_FULL: 409,
     NOT_YOUR_TURN: 409,
     GAME_OVER: 409,
+    HISTORY_DISABLED: 403,
 };
 
 class GameError extends Error {
@@ -39,14 +40,19 @@ async function find_room(id, client) {
     return room;
 }
 
-// With `client` (inside a transaction) the game row stays locked until the transaction ends, so two moves
-// on the same table can't interleave.
+// {room, game}. With `client` (inside a transaction) the game row stays locked until the transaction ends, so
+// two moves on the same table can't interleave.
 async function find_game(id, client) {
     const room = await db_room.get({id, client});
     if (room === undefined) throw new GameError('ROOM_NOT_FOUND', 'There is no table with that code.');
     const game = await db_game.get({room_id: id, client, lock: client !== undefined});
     if (game === undefined) throw new GameError('GAME_NOT_FOUND', "This table's game hasn't started yet.");
-    return game;
+    return {room, game};
+}
+
+// The game as `handle` sees it, under the room's settings.
+function view(room, game, handle) {
+    return Object.assign(view_for(game, handle, room.settings), {name: room.name});
 }
 
 function signed_in_handle(req) {
@@ -72,7 +78,7 @@ function handler(action) {
 async function start(req, res) {
     const {id} = req.params;
     const handle = signed_in_handle(req);
-    const game = await transaction(async function (client) {
+    const {room, game} = await transaction(async function (client) {
         const room = await find_room(id, client);
         if (room.administrator !== handle && !db_room.is_seated(room, handle)) {
             throw new GameError('NOT_A_PLAYER', 'Only players at this table can start its game.');
@@ -82,24 +88,25 @@ async function start(req, res) {
         }
         if (!db_room.is_full(room)) throw new GameError('TABLE_NOT_FULL', 'Every seat must be taken before the game can start.');
 
-        const created = create_game({teams: room.teams});
+        const created = create_game({teams: room.teams, rules: room.settings});
         await db_game.create({room_id: id, state: created, client});
-        return created;
+        return {room, game: created};
     });
-    res.send(view_for(game, handle));
+    res.send(view(room, game, handle));
     broadcast_game(id);
     await broadcast_room({id});
 }
 
 /** GET /room/:id/game: the game as the signed-in player sees it (only their own hand). */
 async function get(req, res) {
-    const game = await find_game(req.params.id);
-    res.send(view_for(game, req.session.handle));
+    const {room, game} = await find_game(req.params.id);
+    res.send(view(room, game, req.session.handle));
 }
 
-/** GET /room/:id/turns: every move so far, oldest first. Public, like the game view. */
+/** GET /room/:id/turns: every move so far, oldest first. Public, like the game view, unless the room turned history off. */
 async function turns(req, res) {
-    await find_game(req.params.id);
+    const {room} = await find_game(req.params.id);
+    if (!room.settings.history) throw new GameError('HISTORY_DISABLED', 'This table plays without move history.');
     res.send(await db_game.list_turns({room_id: req.params.id}));
 }
 
@@ -108,8 +115,8 @@ function move_handler(build_move) {
         const {id} = req.params;
         const handle = signed_in_handle(req);
         const move = build_move(req.body || {});
-        const next = await transaction(async function (client) {
-            const game = await find_game(id, client);
+        const {room, next} = await transaction(async function (client) {
+            const {room, game} = await find_game(id, client);
             const seated = game.players.some(function (player) {
                 return player.handle === handle;
             });
@@ -117,9 +124,9 @@ function move_handler(build_move) {
 
             const played = apply_move(game, handle, move);
             await db_game.record_move({room_id: id, previous: game, next: played, handle, move, client});
-            return played;
+            return {room, next: played};
         });
-        res.send(view_for(next, handle));
+        res.send(view(room, next, handle));
         broadcast_game(id);
     });
 }
