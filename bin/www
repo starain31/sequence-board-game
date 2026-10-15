@@ -7,7 +7,8 @@ const app = require('../app');
 const {socket} = require('../socket');
 const {pool} = require('../database/pool');
 const {migrate} = require('../database/migrate');
-const {start_turn_timer} = require('../controller/room_game');
+const {start_turn_timer, presence_changed} = require('../controller/room_game');
+const presence = require('../controller/presence');
 const debug = require('debug')('sequence-board-game:server');
 const http = require('http');
 
@@ -32,6 +33,12 @@ migrate({pool})
     .then(function () {
         // Plays a random card for anyone whose turn timer runs out, including games resumed after a restart.
         start_turn_timer();
+        // A player leaving or coming back to their table pauses or resumes their turn.
+        presence.on_change(function (room_id) {
+            presence_changed(room_id).catch(function (e) {
+                console.error(`Could not follow who is at ${room_id}:`, e.message);
+            });
+        });
         server.listen(port);
         server.on('error', onError);
         server.on('listening', onListening);

@@ -170,7 +170,11 @@ The GameView for the session's user. Anyone may watch; only seated players see a
   "name": "Friday Night",            // the room's name
   "hint": null,                      // training games only, for the current player, see below
   "turn_started_at": "2026-10-15T06:55:15.349Z",   // when the current turn began (null for games stored before)
-  "turn_deadline": "2026-10-15T06:56:45.349Z",     // when the turn's timer runs out (null once the game is over)
+  "turn_deadline": "2026-10-15T06:56:45.349Z",     // when the turn's timer runs out (null once the game is over or while paused)
+  "turn_paused": false,              // the current player is away from the table, so their turn waits for them
+  "turn_time_left_ms": null,         // while paused: the time the current player will have left; else null
+  "away": ["sakib"],                 // seated players whose game page isn't open
+  "presence_token": "q9…",           // seated players only: send it with the socket's join_game (null for spectators)
   "server_time": "2026-10-15T06:55:21.002Z",       // the server's clock now, to run a turn timer despite clock skew
   "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90},
   "log": [{"kind": "place", "turn": 1, "player": "Jabir ibne kamal", "team": 0, "card": "4-Spade", "pos": {"row": 1, "column": 5}, "wild": false}, …]
@@ -193,6 +197,14 @@ When `turn_deadline` passes, the server plays for the current player: a random c
 played, on a random legal cell (after exchanging a dead card if nothing else can be played; a pass if nothing can be
 done). It is recorded like any move, with `timed_out: true` on the turn and on the log entries it made, and
 `game_updated` is broadcast.
+
+Nobody plays for a player who isn't at the table. A seated player is at the table while their game page has a socket
+that sent `join_game` (see [Socket.IO](#socketio)); a dropped socket counts as gone after a 4 second grace period.
+When the current player is away, their turn is **paused**: `turn_deadline` is null, `turn_paused` is true and
+`turn_time_left_ms` says how long they'll have. The game waits on their turn until they're back, then the timer runs
+on from where it stopped, with at least 15 seconds left. A turn that starts while its player is away (the first turn,
+before anyone has opened the game, for example) starts paused. Presence is kept in memory, so after a restart everyone
+is away until their page reconnects, which it does by itself. Every arrival and departure broadcasts `game_updated`.
 
 ### `POST /room/:id/game/play` (auth) — body `{hand_index, row, column}`
 ### `POST /room/:id/game/exchange` (auth) — body `{hand_index}` (a dead card, once per turn, before playing)
@@ -258,7 +270,12 @@ Same origin and port as HTTP, default path `/socket.io`. The server also serves 
 | `teams_shuffled` | `{room_id, by: {handle, name}, room}` | After the host shuffles the teams (`room` is the new seating), so clients can tell players their new team |
 | `game_updated` | `{room_id}` | After a table game starts or changes. Re-fetch `GET /room/:id/game`; the payload has no hands |
 
-No client → server events are handled. For the legacy game there are no events, so clients must re-fetch
+| Event (client → server) | Payload | Meaning |
+|---|---|---|
+| `join_game` | `{room_id, handle, token}` | This socket has the table's game open, as `handle`. `token` is the `presence_token` from that player's GameView; anything else is ignored |
+| `leave_game` | `{room_id}` | This socket closed the game (left the game page) |
+
+No other client → server events are handled. For the legacy game there are no events, so clients must re-fetch
 `/board/deck` and `/game/hand_cards` themselves.
 
 ## Static assets

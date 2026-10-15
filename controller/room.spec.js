@@ -7,7 +7,17 @@ const describe_with_database = has_database ? describe : describe.skip;
 describe_with_database('rooms and table games', function () {
     let database;
     let app;
+    // The same copies of the modules the app uses (a test below reloads every module to simulate a restart).
+    let presence;
+    let room_game_module;
     const agents = {};
+
+    // These players have the table's game open in a browser.
+    function at_table(id, ...handles) {
+        handles.forEach(function (handle) {
+            presence.arrive({room_id: id, handle, connection: `test-${handle}`});
+        });
+    }
 
     async function sign_up(handle) {
         agents[handle] = request.agent(app);
@@ -41,6 +51,8 @@ describe_with_database('rooms and table games', function () {
     beforeAll(async function () {
         database = await use_test_schema('room');
         app = require('../app');
+        presence = require('./presence');
+        room_game_module = require('./room_game');
         for (const handle of ['alice', 'bob', 'carol', 'dave']) await sign_up(handle);
     });
 
@@ -392,6 +404,7 @@ describe_with_database('rooms and table games', function () {
         const id = await open_room('alice', 2, 1, {turn_seconds: 45});
         await join('alice', id, 'TEAM_1');
         await join('bob', id, 'TEAM_2');
+        at_table(id, 'alice', 'bob');
         const started = (await agents.alice.post(`/room/${id}/start`).expect(200)).body;
         expect(Date.parse(started.turn_deadline) - Date.parse(started.turn_started_at)).toBe(45000);
         const stored = await require('../database/games').get_deadline({room_id: id});
@@ -404,16 +417,15 @@ describe_with_database('rooms and table games', function () {
     });
 
     describe('turn timer', function () {
-        // Required in each test, never while Jest collects them: loading it earlier would open the database pool
-        // before use_test_schema() points it at the test schema, and the tests would run against the real database.
         function room_game() {
-            return require('./room_game');
+            return room_game_module;
         }
 
-        async function started_game() {
+        async function started_game({present = ['alice', 'bob']} = {}) {
             const id = await open_room('alice', 2, 1, {turn_seconds: 30});
             await join('alice', id, 'TEAM_1');
             await join('bob', id, 'TEAM_2');
+            at_table(id, ...present);
             await agents.alice.post(`/room/${id}/start`).expect(200);
             return id;
         }
@@ -451,6 +463,20 @@ describe_with_database('rooms and table games', function () {
             expect(Date.parse(view.turn_deadline)).toBeGreaterThan(Date.now() + 25000);
         });
 
+        test('never plays for a player who is away from the table: their turn pauses instead', async function () {
+            const id = await started_game({present: []});
+            await database.pool.query("UPDATE games SET state = state - 'turn_paused_at' WHERE room_id = $1", [id]);
+            await database.pool.query("UPDATE games SET turn_deadline = now() - interval '1 second' WHERE room_id = $1", [id]);
+
+            expect(await room_game().expire_turn(id)).toBe(false);
+            const {rows} = await database.pool.query(
+                'SELECT count(*) FROM turns JOIN games ON games.id = turns.game_id WHERE games.room_id = $1', [id]);
+            expect(rows[0].count).toBe('0');
+            expect(await require('../database/games').get_deadline({room_id: id})).toBe(null);
+            const view = (await agents.alice.get(`/room/${id}/game`)).body;
+            expect(view).toMatchObject({turn_paused: true, turn_deadline: null, turn_time_left_ms: expect.any(Number)});
+        });
+
         test('leaves finished games and games without a deadline alone', async function () {
             const id = await started_game();
             await database.pool.query("UPDATE games SET turn_deadline = NULL WHERE room_id = $1", [id]);
@@ -458,6 +484,75 @@ describe_with_database('rooms and table games', function () {
             await overdue(id);
             await database.pool.query("UPDATE games SET winner_team = 0, finished_at = now() WHERE room_id = $1", [id]);
             expect(await require('../database/games').overdue()).not.toContain(id);
+        });
+    });
+
+    describe('players away from the table', function () {
+        async function started_game(present) {
+            const id = await open_room('alice', 2, 1, {turn_seconds: 60});
+            await join('alice', id, 'TEAM_1');
+            await join('bob', id, 'TEAM_2');
+            at_table(id, ...present);
+            await agents.alice.post(`/room/${id}/start`).expect(200);
+            const state = await require('../database/games').get({room_id: id});
+            return {id, current: state.players[state.current].handle, other: state.players[1 - state.current].handle};
+        }
+
+        test('the turn of a player who is away is paused, and everyone sees who is away', async function () {
+            const {id, current} = await started_game([]);
+            const view = (await agents.carol.get(`/room/${id}/game`)).body;
+            expect(view).toMatchObject({turn_paused: true, turn_deadline: null, turn_time_left_ms: 60000, presence_token: null});
+            expect(view.away.sort()).toEqual(['alice', 'bob']);
+            expect(await require('../database/games').get_deadline({room_id: id})).toBe(null);
+            expect(await require('../database/games').overdue({now: new Date(Date.now() + 3600 * 1000)})).not.toContain(id);
+
+            // The player comes back: the timer starts where it stopped.
+            at_table(id, current);
+            expect(await room_game_module.presence_changed(id)).toBe(true);
+            const back = (await agents[current].get(`/room/${id}/game`)).body;
+            expect(back.turn_paused).toBe(false);
+            expect(back.away).not.toContain(current);
+            expect(back.presence_token).toBe(presence.token_for(id, current));
+            expect(Date.parse(back.turn_deadline) - Date.now()).toBeGreaterThan(55000);
+        });
+
+        test('time spent away is not counted, and a player who comes back has at least 15 seconds', async function () {
+            const {id, current} = await started_game(['alice', 'bob']);
+            const games = require('../database/games');
+            const started = await games.get({room_id: id});
+            const t0 = Date.parse(started.turn_started_at);
+
+            // Away 40 s into the turn, back 100 s later: 20 s left, as when they left.
+            presence.depart({room_id: id, handle: current, connection: `test-${current}`});
+            await room_game_module.presence_changed(id, new Date(t0 + 40000));
+            expect((await agents.carol.get(`/room/${id}/game`)).body.turn_time_left_ms).toBe(20000);
+            at_table(id, current);
+            await room_game_module.presence_changed(id, new Date(t0 + 140000));
+            expect((await games.get_deadline({room_id: id})).getTime()).toBe(t0 + 160000);
+
+            // Away again 10 s before time is up: they come back to 15 s.
+            presence.depart({room_id: id, handle: current, connection: `test-${current}`});
+            await room_game_module.presence_changed(id, new Date(t0 + 150000));
+            at_table(id, current);
+            await room_game_module.presence_changed(id, new Date(t0 + 200000));
+            expect((await games.get_deadline({room_id: id})).getTime()).toBe(t0 + 215000);
+        });
+
+        test('the next turn starts paused when its player is away', async function () {
+            const {id, current, other} = await started_game([]);
+            at_table(id, current);
+            await room_game_module.presence_changed(id);
+            const move = await legal_play(id);
+            const played = (await agents[current].post(`/room/${id}/game/play`).send(move.body).expect(200)).body;
+            expect(played.current_player).toBe(other);
+            expect(played).toMatchObject({turn_paused: true, turn_deadline: null, turn_time_left_ms: 60000});
+        });
+
+        test('the player whose turn it is can play even if their game page has no socket open', async function () {
+            const {id, current} = await started_game([]);
+            const move = await legal_play(id);
+            expect(move.handle).toBe(current);
+            await agents[current].post(`/room/${id}/game/play`).send(move.body).expect(200);
         });
     });
 
