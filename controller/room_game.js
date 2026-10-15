@@ -10,6 +10,7 @@ const {RuleError, create_game, apply_move, view_for} = require('../entity/sequen
 const STATUS_BY_ERROR = {
     NOT_SIGNED_IN: 401,
     NOT_A_PLAYER: 403,
+    NOT_HOST: 403,
     ROOM_NOT_FOUND: 404,
     GAME_NOT_FOUND: 404,
     GAME_ALREADY_STARTED: 409,
@@ -74,14 +75,14 @@ function handler(action) {
     };
 }
 
-/** POST /room/:id/start: deals a game for a full table. Any seated player or the table's creator may start it. */
+/** POST /room/:id/start: deals a game for a full table. Only the table's creator (the host) may start it. */
 async function start(req, res) {
     const {id} = req.params;
     const handle = signed_in_handle(req);
     const {room, game} = await transaction(async function (client) {
         const room = await find_room(id, client);
-        if (room.administrator !== handle && !db_room.is_seated(room, handle)) {
-            throw new GameError('NOT_A_PLAYER', 'Only players at this table can start its game.');
+        if (room.administrator !== handle) {
+            throw new GameError('NOT_HOST', `Only ${room.administrator}, who opened this table, can start its game.`);
         }
         if (await db_game.get({room_id: id, client}) !== undefined) {
             throw new GameError('GAME_ALREADY_STARTED', "This table's game has already started.");

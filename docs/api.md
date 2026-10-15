@@ -114,12 +114,13 @@ There is no endpoint to leave a room. To list your rooms, see [`GET /user/rooms`
 ## Table game
 
 A full game for a room, run by the server (`entity/sequence_game.js`). Errors are JSON `{error, message}`, where
-`message` is readable by players: `401 NOT_SIGNED_IN`, `403 NOT_A_PLAYER`, `404 ROOM_NOT_FOUND | GAME_NOT_FOUND`,
+`message` is readable by players: `401 NOT_SIGNED_IN`, `403 NOT_A_PLAYER | NOT_HOST`, `404 ROOM_NOT_FOUND | GAME_NOT_FOUND`,
 `409 GAME_ALREADY_STARTED | TABLE_NOT_FULL | NOT_YOUR_TURN | GAME_OVER`, and `400` for rule errors (`CELL_MISMATCH`,
 `CELL_OCCUPIED`, `CORNER`, `OWN_CHIP`, `LOCKED_CHIP`, `NOT_DEAD`, `HAS_MOVES`, …).
 
 ### `POST /room/:id/start` (auth)
-Deals a game once every seat is taken. Any seated player, or the table's creator, may start it. Seats alternate
+Deals a game once every seat is taken. Only the table's creator (the host, `administrator`) may start it; anyone
+else gets `403 NOT_HOST`. Seats alternate
 teams (T1, T2, [T3,] T1, …), and the first seat moves first. Returns a GameView and broadcasts `room_updated` and
 `game_updated`.
 

@@ -177,12 +177,15 @@ describe_with_database('rooms and table games', function () {
             await join('alice', id, 'TEAM_1');
             expect((await agents.alice.post(`/room/${id}/start`)).body.error).toBe('TABLE_NOT_FULL');
             await join('bob', id, 'TEAM_2');
-            expect((await agents.carol.post(`/room/${id}/start`)).body.error).toBe('NOT_A_PLAYER');
+            expect((await agents.carol.post(`/room/${id}/start`)).body.error).toBe('NOT_HOST');
+            const seated_guest = await agents.bob.post(`/room/${id}/start`);
+            expect([seated_guest.status, seated_guest.body.error]).toEqual([403, 'NOT_HOST']);
+            expect(seated_guest.body.message).toMatch(/alice/);
 
             const started = await agents.alice.post(`/room/${id}/start`);
             expect(started.status).toBe(200);
             expect(started.body.hand).toHaveLength(7);
-            expect((await agents.bob.post(`/room/${id}/start`)).body.error).toBe('GAME_ALREADY_STARTED');
+            expect((await agents.alice.post(`/room/${id}/start`)).body.error).toBe('GAME_ALREADY_STARTED');
             expect((await join('carol', id, 'TEAM_2'))).toBe('GAME_ALREADY_STARTED');
             expect((await request(app).get(`/room/${id}`)).body.game_started).toBe(true);
 
