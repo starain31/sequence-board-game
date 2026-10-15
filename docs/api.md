@@ -36,23 +36,24 @@ it is `undefined` when not signed in (the request still succeeds).
 ```jsonc
 // Room
 {
+  "id": "731791746123232",
   "administrator": "jabir",
   "teams": [
-    { "handle": "TEAM_1", "players": [ {"name": "Jabir ibne kamal", "password": "1"}, null ] },
+    { "handle": "TEAM_1", "players": [ {"handle": "jabir", "name": "Jabir ibne kamal"}, null ] },
     { "handle": "TEAM_2", "players": [ null, null ] }
   ]
 }
 ```
-Team handles are `TEAM_1 … TEAM_n`. Empty seats are `null`. Player objects are the raw user record: they have
-`name` and **`password`** but no `handle`.
+Team handles are `TEAM_1 … TEAM_n`. Empty seats are `null`. Player objects are `{handle, name}`.
 
 ### `POST /room/:id/join` (auth)
 Body `{team_handle}`. Takes the first empty seat in that team. Always HTTP `200`; check `message`:
 - `{"message": "success"}`, then the server broadcasts `room_updated`.
 - `{"message": "SEAT_TAKEN"}` when the team is full.
-- `{"message": {}}` when the team handle (or room) doesn't exist.
+- `{"message": "ALREADY_SEATED"}` when you already have a seat at this table.
+- `{"message": "NOT_SIGNED_IN"}` without a session.
+- `{"message": "ROOM_NOT_FOUND"}` or `{"message": "TEAM_NOT_FOUND"}`.
 
-The same user can take several seats. Without a session it still says `success` but fills no seat.
 There are no endpoints to leave a room, list rooms, or start a game.
 
 ## Board

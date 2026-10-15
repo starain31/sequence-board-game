@@ -19,15 +19,16 @@ function create(req, res) {
 
 function join(req, res) {
     const player_handle = req.session.handle;
+    if (player_handle === undefined) {
+        return res.send({message: 'NOT_SIGNED_IN'});
+    }
 
     db_user.get_user({handle: player_handle})
-        .then(function (player) {
+        .then(function (user) {
             const {team_handle} = req.body;
             const {id} = req.params;
 
-            console.log({team_handle, id, player, player_handle});
-            db_room.join({team_handle, id, player});
-            console.log(JSON.stringify({room: db_room.get({id})}, null, '\t'));
+            db_room.join({team_handle, id, player: {handle: player_handle, name: user.name}});
 
             res.send({message: 'success'});
 
@@ -35,8 +36,8 @@ function join(req, res) {
 
         })
         .catch(function (e) {
-            console.error(e);
-            res.send({message: e});
+            if (typeof e !== 'string') console.error(e);
+            res.send({message: typeof e === 'string' ? e : 'ERROR'});
         });
 }
 
