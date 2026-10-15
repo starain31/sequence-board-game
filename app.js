@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const logger = require('morgan');
 const session = require('express-session');
+const {ping} = require('./database/pool');
 
 
 const  user_router = require("./routes/user");
@@ -22,6 +23,16 @@ app.use(session({
     rolling: true,
     saveUninitialized: false
 }));
+
+app.get('/health', function (req, res) {
+    ping()
+        .then(function () {
+            res.send({status: 'ok', database: 'up'});
+        })
+        .catch(function () {
+            res.status(503).send({status: 'error', database: 'down'});
+        });
+});
 
 app.use('/user', user_router);
 app.use('/room', room_router);

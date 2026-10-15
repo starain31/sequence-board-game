@@ -5,6 +5,8 @@
  */
 const app = require('../app');
 const {socket} = require('../socket');
+const {pool} = require('../database/pool');
+const {migrate} = require('../database/migrate');
 const debug = require('debug')('sequence-board-game:server');
 const http = require('http');
 
@@ -21,12 +23,21 @@ const server = http.createServer(app);
 socket.attach(server);
 
 /**
- * Listen on provided port, on all network interfaces.
+ * Bring the database schema up to date, then listen on provided port, on all network interfaces.
+ * Without a database the server cannot do anything useful, so it refuses to start.
  */
 
-server.listen(port);
-server.on('error', onError);
-server.on('listening', onListening);
+migrate({pool})
+    .then(function () {
+        server.listen(port);
+        server.on('error', onError);
+        server.on('listening', onListening);
+    })
+    .catch(function (error) {
+        console.error('Could not prepare the database: ' + (error.message || error.code));
+        console.error('Is PostgreSQL running? Start it with `docker compose up db`, or set DATABASE_URL.');
+        process.exit(1);
+    });
 
 /**
  * Normalize a port into a number, string, or false.
