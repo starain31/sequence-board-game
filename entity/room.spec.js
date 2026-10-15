@@ -63,7 +63,7 @@ describe('slugs', function () {
 describe('settings', function () {
     test('missing keys keep the defaults', function () {
         expect(parse_settings({})).toEqual(DEFAULT_SETTINGS);
-        expect(DEFAULT_SETTINGS).toEqual({mode: 'standard', history: true, highlights: true, auto_draw_dead: false});
+        expect(DEFAULT_SETTINGS).toEqual({mode: 'standard', history: false, highlights: false, auto_draw_dead: false});
     });
 
     test('reads booleans and their string forms, and ignores unknown keys', function () {

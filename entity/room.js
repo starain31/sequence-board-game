@@ -18,10 +18,10 @@ const GAME_MODES = Object.freeze(['standard', 'training']);
 /** What a room does when its creator doesn't say otherwise. */
 const DEFAULT_SETTINGS = Object.freeze({
     mode: 'standard',
-    // Players can read every move so far (the move log and GET /room/:id/turns).
-    history: true,
-    // Legal cells light up when a card is picked.
-    highlights: true,
+    // Players can read every move so far (the move log and GET /room/:id/turns). Off unless the host turns it on.
+    history: false,
+    // Legal cells light up when a card is picked. Off unless the host turns it on.
+    highlights: false,
     // A dead card is exchanged automatically at the start of its owner's turn.
     auto_draw_dead: false,
 });

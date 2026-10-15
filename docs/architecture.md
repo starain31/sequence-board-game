@@ -67,7 +67,8 @@ database/
   pool.js             PostgreSQL connection pool (DATABASE_URL) and ping() for /health
   migrate.js          SQL migration runner (also `npm run db:migrate`), tested in migrate.spec.js
   migrations/         Numbered .sql files: 0001 users, 0002 session, 0003 rooms + room_seats, 0004 games + turns,
-                      0005 room names, slug codes and settings, 0006 game mode
+                      0005 room names, slug codes and settings, 0006 game mode,
+                      0007 highlights and history off by default
   users.js            Accounts in the users table; only find_credentials() reads password_hash
   seed.js             Development accounts jabir/1, sakib/123 (`npm run db:seed`)
   test_database.js    Gives a spec its own migrated schema (needs DATABASE_URL)

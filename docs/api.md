@@ -43,7 +43,7 @@ The tables you created or sat at, newest first (at most 50). `401 NOT_SIGNED_IN`
 [{
   "id": "friday-night-k3m9", "name": "Friday Night", "created_at": "…", "administrator": "jabir",
   "team_count": 2, "players_per_team": 1, "seats_taken": 2,
-  "settings": {"mode": "standard", "history": true, "highlights": true, "auto_draw_dead": false},
+  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false},
   "your_team": 0,                      // null when you only created the table
   "status": "playing",                 // open (no game yet) | playing | finished
   "started_at": "…", "finished_at": null, "winner_team": null,
@@ -70,8 +70,8 @@ Settings and their defaults:
 | Setting | Default | Effect |
 |---|---|---|
 | `mode` | `"standard"` | `"training"`: the player whose turn it is gets a `hint` in the GameView. Standard games never get hints |
-| `history` | `true` | Off: `GET /room/:id/turns` is `403 HISTORY_DISABLED` and the GameView's `log` keeps only the latest move |
-| `highlights` | `true` | Off: clients don't light up legal cells (the server only reports the setting) |
+| `history` | `false` | Off: `GET /room/:id/turns` is `403 HISTORY_DISABLED` and the GameView's `log` keeps only the latest move |
+| `highlights` | `false` | Off: clients don't light up legal cells (the server only reports the setting) |
 | `auto_draw_dead` | `false` | On: a dead card is exchanged automatically when its owner's turn starts (their one exchange for that turn), logged as `{kind: "exchange", auto: true, …}` |
 
 Room codes created before slugs are numeric strings (`"731791746123232"`) and still work.
@@ -90,7 +90,7 @@ Body `{name?, mode?, history?, highlights?, auto_draw_dead?}`; missing keys keep
   "administrator": "jabir",
   "id": "friday-night-k3m9",
   "name": "Friday Night",
-  "settings": {"mode": "standard", "history": true, "highlights": true, "auto_draw_dead": false},
+  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false},
   "created_at": "2026-10-15T05:48:22.696Z",
   "teams": [
     { "handle": "TEAM_1", "players": [ {"handle": "jabir", "name": "Jabir ibne kamal"}, null ] },
@@ -150,7 +150,7 @@ The GameView for the session's user. Anyone may watch; only seated players see a
   "hint": null,                      // training games only, for the current player, see below
   "turn_started_at": "2026-10-15T06:55:15.349Z",   // when the current turn began (null for games stored before)
   "server_time": "2026-10-15T06:55:21.002Z",       // the server's clock now, to run a turn timer despite clock skew
-  "settings": {"mode": "standard", "history": true, "highlights": true, "auto_draw_dead": false},
+  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false},
   "log": [{"kind": "place", "turn": 1, "player": "Jabir ibne kamal", "team": 0, "card": "4-Spade", "pos": {"row": 1, "column": 5}, "wild": false}, …]
 }
 ```
