@@ -13,21 +13,28 @@ doesn't. Used by the backend's Docker healthcheck.
 
 ## User
 
-### `POST /user/signin`
-Body `{handle, password}`. Test accounts: `jabir` / `1`, `sakib` / `123`.
-- Success: `200`, empty body, sets cookie `connect.sid`.
-- Wrong credentials: `302` redirect to `Referer` (or `/`). With `fetch`, look at `response.redirected` /
-  status rather than the body.
+Errors are JSON `{error: CODE, message}`; `message` is readable by players. Handles are case-insensitive:
+they are trimmed and lower-cased before use, and responses always carry the stored lower-case form.
 
 ### `POST /user/signup`
-Stub. Always `200`, empty body, creates nothing.
+Body `{handle, name, password}`. Creates the account and signs it in (sets cookie `connect.sid`).
+- Success: `201 {handle, name}`.
+- `400 INVALID_HANDLE` (3–20 of `a-z 0-9 _`), `400 INVALID_NAME` (1–50 characters after trimming),
+  `400 WEAK_PASSWORD` (8–200 characters).
+- `409 HANDLE_TAKEN`.
+- `429 TOO_MANY_ATTEMPTS` after 20 sign-ups from one IP within an hour.
+
+### `POST /user/signin`
+Body `{handle, password}`. Development accounts (created by `npm run db:seed`): `jabir` / `1`, `sakib` / `123`.
+- Success: `200 {handle, name}`, sets cookie `connect.sid` (a new session id on every sign-in).
+- `401 INVALID_CREDENTIALS` for a wrong password or an unknown handle (the two are indistinguishable).
+- `429 TOO_MANY_ATTEMPTS` after 10 failed sign-ins from one IP within 15 minutes. Successful sign-ins don't count.
+
+### `POST /user/signout`
+Ends the session on the server and clears the cookie. Always `204`, with or without a session.
 
 ### `GET /user/profile` (auth)
-`200 {handle, name}`.
-**Without a session it crashes the whole server process** (unhandled promise rejection). Only call it after
-signing in.
-
-There is no sign-out endpoint.
+`200 {handle, name}`, or `401 NOT_SIGNED_IN`. Clients can use it to ask "am I signed in?".
 
 ## Room
 

@@ -13,9 +13,9 @@ the project without reading the source.
 
 ## In one paragraph
 
-Express 4 serves a small REST API plus static files from `public/`, with cookie sessions (`express-session`,
-in memory) and a Socket.IO server attached to the same HTTP server. All data lives in process memory: two
-hard-coded users, rooms in a module-level object, and one global game. There are **two separate game
+Express 4 serves a small REST API plus static files from `public/`, with cookie sessions (`express-session`)
+and a Socket.IO server attached to the same HTTP server. Accounts and sessions are stored in PostgreSQL;
+rooms and games still live in process memory. There are **two separate game
 implementations**: a clean, tested domain layer (`entity/` + `use_case/`) that is only used by the terminal
 runners, and an older HTTP game (`controller/game.js`) that the API actually serves. Rooms and games are not
 connected, nothing detects a completed sequence or a winner, and every valid move over HTTP currently fails
@@ -25,13 +25,12 @@ with a 500 error (see [known-issues.md](known-issues.md)).
 
 | Area | State |
 |---|---|
-| Sign in / session | Works (hard-coded users) |
-| Sign up | Stub, does nothing |
+| Sign up / sign in / sign out | Works; accounts and sessions in PostgreSQL, scrypt hashes, rate limited |
 | Create/join room, live room updates | Works, with gaps |
 | Start a game from a room | Not implemented |
 | Play a move over HTTP | Broken (500 on every valid move) |
 | Turn order, dealing, drawing | Only in `entity/` + `use_case/` (terminal runners) |
 | Sequence detection, win condition, dead cards | Not implemented anywhere |
-| Persistence | PostgreSQL and migrations are set up; no data is stored in it yet |
+| Persistence | Accounts and sessions; rooms and games are still in memory |
 | CORS | Not configured |
 | Local environment | `docker compose up` (Postgres, backend, frontend), see [architecture.md](architecture.md#run) |
