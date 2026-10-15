@@ -23,6 +23,7 @@
     "vue": "^2.6.11"
   },
   "devDependencies": {
-    "colors": "^1.4.0"
+    "colors": "^1.4.0",
+    "nodemon": "3.1.14"
   }
 }

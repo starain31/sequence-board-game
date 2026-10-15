@@ -1,0 +1,70 @@
+# Local development environment: PostgreSQL, the backend (this repo) and the frontend
+# (../sequence-board-game-frontend, checked out next to this repo).
+#
+#   docker compose up            # everything: http://localhost:5173 (frontend), :3000 (backend)
+#   docker compose up db         # only the database, for running `npm start` on the host
+#   docker compose down -v       # stop and delete the database volume
+#
+# Both app services mount their source, so edits reload live (nodemon / Vite). Dependencies are installed
+# with `npm ci` into a container-only volume on every start, so the host's node_modules is never used.
+# Host ports can be changed with DB_PORT, BACKEND_PORT and FRONTEND_PORT (e.g. in a `.env` file).
+
+name: sequence
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sequence
+      POSTGRES_PASSWORD: sequence
+      POSTGRES_DB: sequence
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sequence -d sequence"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  backend:
+    image: node:24-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run debug"
+    environment:
+      DATABASE_URL: postgres://sequence:sequence@db:5432/sequence
+      PORT: "3000"
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    volumes:
+      - .:/app
+      - backend-node-modules:/app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 120s
+
+  frontend:
+    image: node:24-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev"
+    environment:
+      BACKEND_URL: http://backend:3000
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ../sequence-board-game-frontend:/app
+      - frontend-node-modules:/app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  db-data:
+  backend-node-modules:
+  frontend-node-modules:
