@@ -30,7 +30,7 @@ npm test             # jest; the database tests run only when DATABASE_URL is se
 DATABASE_URL=postgres://sequence:sequence@localhost:5432/sequence npm test
 npm run db:migrate   # apply pending migrations without starting the server
 npm run db:seed      # create the development accounts jabir/1 and sakib/123 (compose does this itself)
-npm run debug        # nodemon
+npm run dev          # nodemon
 npm run debug_1      # terminal game, moves read from console_controller/input.txt
 npm run debug_2      # terminal game, moves typed interactively (inquirer)
 ```
