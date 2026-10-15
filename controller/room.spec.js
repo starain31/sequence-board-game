@@ -199,8 +199,18 @@ describe_with_database('rooms and table games', function () {
             await join('bob', id, 'TEAM_1');
             await join('carol', id, 'TEAM_2');
 
+            const socket_server = require('../socket');
+            const sent = jest.spyOn(socket_server, 'broadcast');
             const shuffled = await agents.alice.post(`/room/${id}/shuffle`);
             expect(shuffled.status).toBe(200);
+            const event = sent.mock.calls.map(function ([call]) {
+                return call;
+            }).find(function (call) {
+                return call.event === 'teams_shuffled';
+            });
+            // As clients receive it: JSON, so dates are strings like in the HTTP response.
+            expect(JSON.parse(JSON.stringify(event.data))).toEqual({room_id: id, by: {handle: 'alice', name: 'Player alice'}, room: shuffled.body});
+            sent.mockRestore();
             const players = shuffled.body.teams.flatMap(function (t) {
                 return t.players;
             }).filter(Boolean).map(function (p) {
