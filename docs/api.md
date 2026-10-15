@@ -148,6 +148,8 @@ The GameView for the session's user. Anyone may watch; only seated players see a
   "winner": null,
   "name": "Friday Night",            // the room's name
   "hint": null,                      // training games only, for the current player, see below
+  "turn_started_at": "2026-10-15T06:55:15.349Z",   // when the current turn began (null for games stored before)
+  "server_time": "2026-10-15T06:55:21.002Z",       // the server's clock now, to run a turn timer despite clock skew
   "settings": {"mode": "standard", "history": true, "highlights": true, "auto_draw_dead": false},
   "log": [{"kind": "place", "turn": 1, "player": "Jabir ibne kamal", "team": 0, "card": "4-Spade", "pos": {"row": 1, "column": 5}, "wild": false}, …]
 }
