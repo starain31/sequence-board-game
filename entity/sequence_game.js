@@ -451,6 +451,11 @@ function view_for(state, handle, settings = {}) {
 }
 
 module.exports = {
+    DIRECTIONS,
+    card_kind,
+    counts_for,
+    in_bounds,
+    can_exchange,
     RuleError,
     create_game,
     apply_move,
