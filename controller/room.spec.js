@@ -79,6 +79,68 @@ describe_with_database('rooms and table games', function () {
         });
     });
 
+    describe('names, slugs and settings', function () {
+        test('the code is a slug of the name, and settings default sensibly', async function () {
+            const response = await agents.alice.post('/room/create')
+                .send({number_of_team: 2, number_of_player_in_each_team: 1, name: '  Friday   Night Café '}).expect(200);
+            expect(response.body.id).toMatch(/^friday-night-cafe-[a-z0-9]{4}$/);
+            const room = (await request(app).get(`/room/${response.body.id}`)).body;
+            expect(room.name).toBe('Friday Night Café');
+            expect(room.settings).toEqual({history: true, highlights: true, auto_draw_dead: false});
+        });
+
+        test('a table without a name gets a generated one', async function () {
+            const id = await open_room('alice');
+            const room = (await request(app).get(`/room/${id}`)).body;
+            expect(room.name).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/);
+            expect(id.startsWith(room.name.toLowerCase().replace(' ', '-') + '-')).toBe(true);
+        });
+
+        test('two tables with the same name get different codes', async function () {
+            const ids = await Promise.all([1, 2, 3].map(function () {
+                return agents.alice.post('/room/create').send({number_of_team: 2, number_of_player_in_each_team: 1, name: 'Same'})
+                    .then(function (response) {
+                        return response.body.id;
+                    });
+            }));
+            expect(new Set(ids).size).toBe(3);
+        });
+
+        test('settings chosen at creation are stored', async function () {
+            const response = await agents.alice.post('/room/create').send({
+                number_of_team: 2, number_of_player_in_each_team: 1, history: false, highlights: 'false', auto_draw_dead: true,
+            }).expect(200);
+            const room = (await request(app).get(`/room/${response.body.id}`)).body;
+            expect(room.settings).toEqual({history: false, highlights: false, auto_draw_dead: true});
+        });
+
+        test('refuses a bad name or setting', async function () {
+            const base = {number_of_team: 2, number_of_player_in_each_team: 1};
+            const long = await agents.alice.post('/room/create').send(Object.assign({name: 'x'.repeat(41)}, base));
+            expect([long.status, long.body.error]).toEqual([400, 'INVALID_NAME']);
+            const bad = await agents.alice.post('/room/create').send(Object.assign({history: 'maybe'}, base));
+            expect([bad.status, bad.body.error]).toEqual([400, 'INVALID_SETTINGS']);
+        });
+
+        test('only the host changes settings, and only before the game starts', async function () {
+            const id = await open_room('alice');
+            const changed = await agents.alice.patch(`/room/${id}/settings`).send({name: 'Renamed', highlights: false});
+            expect(changed.status).toBe(200);
+            expect(changed.body).toMatchObject({id, name: 'Renamed', settings: {history: true, highlights: false, auto_draw_dead: false}});
+
+            expect((await agents.bob.patch(`/room/${id}/settings`).send({history: false})).body.error).toBe('NOT_HOST');
+            expect((await request(app).patch(`/room/${id}/settings`).send({history: false})).status).toBe(401);
+            expect((await agents.alice.patch('/room/nope/settings').send({})).status).toBe(404);
+            expect((await agents.alice.patch(`/room/${id}/settings`).send({history: 1})).body.error).toBe('INVALID_SETTINGS');
+
+            await join('alice', id, 'TEAM_1');
+            await join('bob', id, 'TEAM_2');
+            await agents.alice.post(`/room/${id}/start`).expect(200);
+            const late = await agents.alice.patch(`/room/${id}/settings`).send({history: false});
+            expect([late.status, late.body.error]).toEqual([409, 'GAME_ALREADY_STARTED']);
+        });
+    });
+
     test('GET /room/:id of an unknown id is an empty 200, as before', async function () {
         const response = await request(app).get('/room/does-not-exist');
         expect(response.status).toBe(200);
