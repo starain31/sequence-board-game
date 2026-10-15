@@ -544,7 +544,7 @@ describe_with_database('rooms and table games', function () {
             expect(Date.parse(back.turn_deadline) - Date.now()).toBeGreaterThan(55000);
         });
 
-        test('time spent away is not counted, and a player who comes back has at least 15 seconds', async function () {
+        test('time spent away is not counted: a player who comes back has the time they left with', async function () {
             const {id, current} = await started_game(['alice', 'bob']);
             const games = require('../database/games');
             const started = await games.get({room_id: id});
@@ -558,12 +558,12 @@ describe_with_database('rooms and table games', function () {
             await room_game_module.presence_changed(id, new Date(t0 + 140000));
             expect((await games.get_deadline({room_id: id})).getTime()).toBe(t0 + 160000);
 
-            // Away again 10 s before time is up: they come back to 15 s.
+            // Away again 10 s before time is up: they come back to the same 10 s, with no minimum.
             presence.depart({room_id: id, handle: current, connection: `test-${current}`});
             await room_game_module.presence_changed(id, new Date(t0 + 150000));
             at_table(id, current);
             await room_game_module.presence_changed(id, new Date(t0 + 200000));
-            expect((await games.get_deadline({room_id: id})).getTime()).toBe(t0 + 215000);
+            expect((await games.get_deadline({room_id: id})).getTime()).toBe(t0 + 210000);
         });
 
         test('the next turn starts paused when its player is away', async function () {
