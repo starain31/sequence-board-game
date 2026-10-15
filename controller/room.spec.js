@@ -86,7 +86,7 @@ describe_with_database('rooms and table games', function () {
             expect(response.body.id).toMatch(/^friday-night-cafe-[a-z0-9]{4}$/);
             const room = (await request(app).get(`/room/${response.body.id}`)).body;
             expect(room.name).toBe('Friday Night Café');
-            expect(room.settings).toEqual({history: true, highlights: true, auto_draw_dead: false});
+            expect(room.settings).toEqual({mode: 'standard', history: true, highlights: true, auto_draw_dead: false});
         });
 
         test('a table without a name gets a generated one', async function () {
@@ -108,10 +108,12 @@ describe_with_database('rooms and table games', function () {
 
         test('settings chosen at creation are stored', async function () {
             const response = await agents.alice.post('/room/create').send({
-                number_of_team: 2, number_of_player_in_each_team: 1, history: false, highlights: 'false', auto_draw_dead: true,
+                number_of_team: 2, number_of_player_in_each_team: 1, mode: 'training', history: false, highlights: 'false', auto_draw_dead: true,
             }).expect(200);
             const room = (await request(app).get(`/room/${response.body.id}`)).body;
-            expect(room.settings).toEqual({history: false, highlights: false, auto_draw_dead: true});
+            expect(room.settings).toEqual({mode: 'training', history: false, highlights: false, auto_draw_dead: true});
+            const bad = await agents.alice.post('/room/create').send({number_of_team: 2, number_of_player_in_each_team: 1, mode: 'easy'});
+            expect([bad.status, bad.body.error]).toEqual([400, 'INVALID_SETTINGS']);
         });
 
         test('refuses a bad name or setting', async function () {
@@ -177,12 +179,15 @@ describe_with_database('rooms and table games', function () {
             await join('alice', id, 'TEAM_1');
             expect((await agents.alice.post(`/room/${id}/start`)).body.error).toBe('TABLE_NOT_FULL');
             await join('bob', id, 'TEAM_2');
-            expect((await agents.carol.post(`/room/${id}/start`)).body.error).toBe('NOT_A_PLAYER');
+            expect((await agents.carol.post(`/room/${id}/start`)).body.error).toBe('NOT_HOST');
+            const seated_guest = await agents.bob.post(`/room/${id}/start`);
+            expect([seated_guest.status, seated_guest.body.error]).toEqual([403, 'NOT_HOST']);
+            expect(seated_guest.body.message).toMatch(/alice/);
 
             const started = await agents.alice.post(`/room/${id}/start`);
             expect(started.status).toBe(200);
             expect(started.body.hand).toHaveLength(7);
-            expect((await agents.bob.post(`/room/${id}/start`)).body.error).toBe('GAME_ALREADY_STARTED');
+            expect((await agents.alice.post(`/room/${id}/start`)).body.error).toBe('GAME_ALREADY_STARTED');
             expect((await join('carol', id, 'TEAM_2'))).toBe('GAME_ALREADY_STARTED');
             expect((await request(app).get(`/room/${id}`)).body.game_started).toBe(true);
 
@@ -288,6 +293,46 @@ describe_with_database('rooms and table games', function () {
         ]);
     });
 
+    describe('game modes', function () {
+        async function started(mode) {
+            const id = (await agents.alice.post('/room/create')
+                .send({number_of_team: 2, number_of_player_in_each_team: 1, mode}).expect(200)).body.id;
+            await join('alice', id, 'TEAM_1');
+            await join('bob', id, 'TEAM_2');
+            await agents.alice.post(`/room/${id}/start`).expect(200);
+            return id;
+        }
+
+        test('a training game hints the player whose turn it is, and nobody else', async function () {
+            const id = await started('training');
+            const state = await require('../database/games').get({room_id: id});
+            const current = state.players[state.current].handle;
+            const waiting = current === 'alice' ? 'bob' : 'alice';
+
+            const mine = (await agents[current].get(`/room/${id}/game`)).body;
+            expect(mine.settings.mode).toBe('training');
+            expect(mine.hint).toEqual(require('../entity/hints').suggest_move(state));
+            expect(mine.hint.type).toMatch(/^(play|exchange|pass)$/);
+            expect((await agents[waiting].get(`/room/${id}/game`)).body.hint).toBeNull();
+            expect((await request(app).get(`/room/${id}/game`)).body.hint).toBeNull();
+
+            // The hinted move is legal.
+            if (mine.hint.type === 'play') {
+                const body = {hand_index: mine.hint.hand_index, row: mine.hint.target.row, column: mine.hint.target.column};
+                const played = await agents[current].post(`/room/${id}/game/play`).send(body);
+                expect(played.status).toBe(200);
+                expect(played.body.hint).toBeNull();
+            }
+        });
+
+        test('a standard game never sends a hint', async function () {
+            const id = await started('standard');
+            for (const handle of ['alice', 'bob']) {
+                expect((await agents[handle].get(`/room/${id}/game`)).body.hint).toBeNull();
+            }
+        });
+    });
+
     describe('history', function () {
         test('GET /room/:id/turns lists the moves with their players, without hands', async function () {
             const id = await open_room('carol', 2, 1);
@@ -322,7 +367,7 @@ describe_with_database('rooms and table games', function () {
             await join('bob', id, 'TEAM_2');
             const started = await agents.carol.post(`/room/${id}/start`).expect(200);
             expect(started.body.name).toBe('Quiet');
-            expect(started.body.settings).toEqual({history: false, highlights: true, auto_draw_dead: false});
+            expect(started.body.settings).toEqual({mode: 'standard', history: false, highlights: true, auto_draw_dead: false});
 
             for (let i = 0; i < 3; i++) {
                 const move = await legal_play(id);

@@ -4,12 +4,14 @@ const {transaction} = require('../database/pool');
 const socket_server = require('../socket');
 const {broadcast_room} = require('./room');
 const {RuleError, create_game, apply_move, view_for} = require('../entity/sequence_game');
+const {suggest_move} = require('../entity/hints');
 
 // A game played at a room's table. Errors are JSON: {error: CODE, message}.
 
 const STATUS_BY_ERROR = {
     NOT_SIGNED_IN: 401,
     NOT_A_PLAYER: 403,
+    NOT_HOST: 403,
     ROOM_NOT_FOUND: 404,
     GAME_NOT_FOUND: 404,
     GAME_ALREADY_STARTED: 409,
@@ -50,9 +52,14 @@ async function find_game(id, client) {
     return {room, game};
 }
 
-// The game as `handle` sees it, under the room's settings.
+// The game as `handle` sees it, under the room's settings. Hints exist only in training games, and only for the
+// player whose turn it is, so a standard game never sends one.
 function view(room, game, handle) {
-    return Object.assign(view_for(game, handle, room.settings), {name: room.name});
+    const seen = view_for(game, handle, room.settings);
+    const hint = room.settings.mode === 'training' && seen.current_player !== null && seen.current_player === handle
+        ? suggest_move(game)
+        : null;
+    return Object.assign(seen, {name: room.name, hint});
 }
 
 function signed_in_handle(req) {
@@ -74,14 +81,14 @@ function handler(action) {
     };
 }
 
-/** POST /room/:id/start: deals a game for a full table. Any seated player or the table's creator may start it. */
+/** POST /room/:id/start: deals a game for a full table. Only the table's creator (the host) may start it. */
 async function start(req, res) {
     const {id} = req.params;
     const handle = signed_in_handle(req);
     const {room, game} = await transaction(async function (client) {
         const room = await find_room(id, client);
-        if (room.administrator !== handle && !db_room.is_seated(room, handle)) {
-            throw new GameError('NOT_A_PLAYER', 'Only players at this table can start its game.');
+        if (room.administrator !== handle) {
+            throw new GameError('NOT_HOST', `Only ${room.administrator}, who opened this table, can start its game.`);
         }
         if (await db_game.get({room_id: id, client}) !== undefined) {
             throw new GameError('GAME_ALREADY_STARTED', "This table's game has already started.");

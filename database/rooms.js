@@ -15,6 +15,7 @@ function team_index(handle, team_count) {
 
 // The settings columns, as {setting: column}. See DEFAULT_SETTINGS in entity/room.js.
 const SETTING_COLUMNS = {
+    mode: 'game_mode',
     history: 'history_enabled',
     highlights: 'highlights_enabled',
     auto_draw_dead: 'auto_draw_dead',
@@ -74,7 +75,7 @@ async function update({id, name, settings, client = pool}) {
     );
 }
 
-// {id, name, administrator, team_count, players_per_team, created_at, settings: {history, highlights, auto_draw_dead},
+// {id, name, administrator, team_count, players_per_team, created_at, settings: {mode, history, highlights, auto_draw_dead},
 //  teams: [{handle, players: [{handle, name} | null]}]} or undefined. `lock` holds the room row until the
 // transaction ends, which serialises joins, starts and settings changes.
 async function get({id, client = pool, lock = false}) {

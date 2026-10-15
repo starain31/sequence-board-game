@@ -43,7 +43,7 @@ The tables you created or sat at, newest first (at most 50). `401 NOT_SIGNED_IN`
 [{
   "id": "friday-night-k3m9", "name": "Friday Night", "created_at": "…", "administrator": "jabir",
   "team_count": 2, "players_per_team": 1, "seats_taken": 2,
-  "settings": {"history": true, "highlights": true, "auto_draw_dead": false},
+  "settings": {"mode": "standard", "history": true, "highlights": true, "auto_draw_dead": false},
   "your_team": 0,                      // null when you only created the table
   "status": "playing",                 // open (no game yet) | playing | finished
   "started_at": "…", "finished_at": null, "winner_team": null,
@@ -56,8 +56,9 @@ The tables you created or sat at, newest first (at most 50). `401 NOT_SIGNED_IN`
 Rooms, seats, games and every move are stored in PostgreSQL, so tables and games in progress survive restarts.
 
 ### `POST /room/create` (auth)
-Body `{number_of_team, number_of_player_in_each_team, name?, history?, highlights?, auto_draw_dead?}`. Counts are
-numbers or numeric strings; settings are booleans (or `"true"` / `"false"`).
+Body `{number_of_team, number_of_player_in_each_team, name?, mode?, history?, highlights?, auto_draw_dead?}`. Counts
+are numbers or numeric strings; `mode` is `"standard"` or `"training"`; the other settings are booleans (or `"true"`
+/ `"false"`).
 `200 {id}`. `id` is the table's code: a slug of its name plus a 4-character suffix, such as `"friday-night-k3m9"`.
 Without a name the table gets a generated one ("Lucky Otter"). The signed-in user becomes `administrator` (the host).
 Errors are JSON `{error, message}`: `401 NOT_SIGNED_IN`, `400 UNSUPPORTED_TABLE` for a table size the rules
@@ -68,6 +69,7 @@ Settings and their defaults:
 
 | Setting | Default | Effect |
 |---|---|---|
+| `mode` | `"standard"` | `"training"`: the player whose turn it is gets a `hint` in the GameView. Standard games never get hints |
 | `history` | `true` | Off: `GET /room/:id/turns` is `403 HISTORY_DISABLED` and the GameView's `log` keeps only the latest move |
 | `highlights` | `true` | Off: clients don't light up legal cells (the server only reports the setting) |
 | `auto_draw_dead` | `false` | On: a dead card is exchanged automatically when its owner's turn starts (their one exchange for that turn), logged as `{kind: "exchange", auto: true, …}` |
@@ -75,7 +77,7 @@ Settings and their defaults:
 Room codes created before slugs are numeric strings (`"731791746123232"`) and still work.
 
 ### `PATCH /room/:id/settings` (auth, host)
-Body `{name?, history?, highlights?, auto_draw_dead?}`; missing keys keep their value. The code never changes.
+Body `{name?, mode?, history?, highlights?, auto_draw_dead?}`; missing keys keep their value. The code never changes.
 `200` with the Room, and `room_updated` is broadcast. `401 NOT_SIGNED_IN`, `403 NOT_HOST`, `404 ROOM_NOT_FOUND`,
 `409 GAME_ALREADY_STARTED` (settings are fixed once the game starts), `400 INVALID_NAME | INVALID_SETTINGS`.
 
@@ -88,7 +90,7 @@ Body `{name?, history?, highlights?, auto_draw_dead?}`; missing keys keep their 
   "administrator": "jabir",
   "id": "friday-night-k3m9",
   "name": "Friday Night",
-  "settings": {"history": true, "highlights": true, "auto_draw_dead": false},
+  "settings": {"mode": "standard", "history": true, "highlights": true, "auto_draw_dead": false},
   "created_at": "2026-10-15T05:48:22.696Z",
   "teams": [
     { "handle": "TEAM_1", "players": [ {"handle": "jabir", "name": "Jabir ibne kamal"}, null ] },
@@ -114,12 +116,13 @@ There is no endpoint to leave a room. To list your rooms, see [`GET /user/rooms`
 ## Table game
 
 A full game for a room, run by the server (`entity/sequence_game.js`). Errors are JSON `{error, message}`, where
-`message` is readable by players: `401 NOT_SIGNED_IN`, `403 NOT_A_PLAYER`, `404 ROOM_NOT_FOUND | GAME_NOT_FOUND`,
+`message` is readable by players: `401 NOT_SIGNED_IN`, `403 NOT_A_PLAYER | NOT_HOST`, `404 ROOM_NOT_FOUND | GAME_NOT_FOUND`,
 `409 GAME_ALREADY_STARTED | TABLE_NOT_FULL | NOT_YOUR_TURN | GAME_OVER`, and `400` for rule errors (`CELL_MISMATCH`,
 `CELL_OCCUPIED`, `CORNER`, `OWN_CHIP`, `LOCKED_CHIP`, `NOT_DEAD`, `HAS_MOVES`, …).
 
 ### `POST /room/:id/start` (auth)
-Deals a game once every seat is taken. Any seated player, or the table's creator, may start it. Seats alternate
+Deals a game once every seat is taken. Only the table's creator (the host, `administrator`) may start it; anyone
+else gets `403 NOT_HOST`. Seats alternate
 teams (T1, T2, [T3,] T1, …), and the first seat moves first. Returns a GameView and broadcasts `room_updated` and
 `game_updated`.
 
@@ -144,10 +147,23 @@ The GameView for the session's user. Anyone may watch; only seated players see a
   "sequences": [{"team": 0, "cells": [{"row": 0, "column": 1}, …]}],
   "winner": null,
   "name": "Friday Night",            // the room's name
-  "settings": {"history": true, "highlights": true, "auto_draw_dead": false},
+  "hint": null,                      // training games only, for the current player, see below
+  "settings": {"mode": "standard", "history": true, "highlights": true, "auto_draw_dead": false},
   "log": [{"kind": "place", "turn": 1, "player": "Jabir ibne kamal", "team": 0, "card": "4-Spade", "pos": {"row": 1, "column": 5}, "wild": false}, …]
 }
 ```
+
+`hint` is null except for the player whose turn it is in a training game, where it is the suggested move
+(`entity/hints.js`):
+
+```jsonc
+{"type": "play", "hand_index": 2, "target": {"row": 3, "column": 5}, "reason": {"kind": "block", "length": 5, "team": 1}}
+{"type": "exchange", "hand_index": 0, "reason": {"kind": "dead"}}
+{"type": "pass", "reason": {"kind": "pass"}}
+```
+
+`reason.kind` is `sequence` (completes one), `extend` (builds your line to `length`), `block` (takes the cell that
+would give `team` a line of `length`), `break` (a one-eyed jack breaking `team`'s line of `length`), `dead` or `pass`.
 
 ### `POST /room/:id/game/play` (auth) — body `{hand_index, row, column}`
 ### `POST /room/:id/game/exchange` (auth) — body `{hand_index}` (a dead card, once per turn, before playing)

@@ -63,17 +63,26 @@ describe('slugs', function () {
 describe('settings', function () {
     test('missing keys keep the defaults', function () {
         expect(parse_settings({})).toEqual(DEFAULT_SETTINGS);
-        expect(DEFAULT_SETTINGS).toEqual({history: true, highlights: true, auto_draw_dead: false});
+        expect(DEFAULT_SETTINGS).toEqual({mode: 'standard', history: true, highlights: true, auto_draw_dead: false});
     });
 
     test('reads booleans and their string forms, and ignores unknown keys', function () {
         expect(parse_settings({history: 'false', highlights: false, auto_draw_dead: true, other: 1}))
-            .toEqual({history: false, highlights: false, auto_draw_dead: true});
+            .toEqual({mode: 'standard', history: false, highlights: false, auto_draw_dead: true});
     });
 
     test('changes only the given keys of current settings', function () {
-        const current = {history: false, highlights: false, auto_draw_dead: true};
-        expect(parse_settings({highlights: true}, current)).toEqual({history: false, highlights: true, auto_draw_dead: true});
+        const current = {mode: 'training', history: false, highlights: false, auto_draw_dead: true};
+        expect(parse_settings({highlights: true}, current)).toEqual({mode: 'training', history: false, highlights: true, auto_draw_dead: true});
+    });
+
+    test('reads the game mode', function () {
+        expect(parse_settings({mode: 'training'}).mode).toBe('training');
+        for (const bad of ['TRAINING', 'hints', true]) {
+            expect(function () {
+                parse_settings({mode: bad});
+            }).toThrow(expect.objectContaining({code: 'INVALID_SETTINGS'}));
+        }
     });
 
     test('refuses values that are not booleans', function () {
