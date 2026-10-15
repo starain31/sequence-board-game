@@ -14,9 +14,9 @@ describe_with_database('rooms and table games', function () {
         await agents[handle].post('/user/signup').send({handle, name: `Player ${handle}`, password: 'long enough'}).expect(201);
     }
 
-    async function open_room(handle, teams = 2, players = 1) {
+    async function open_room(handle, teams = 2, players = 1, settings = {}) {
         const response = await agents[handle].post('/room/create')
-            .send({number_of_team: teams, number_of_player_in_each_team: players}).expect(200);
+            .send(Object.assign({number_of_team: teams, number_of_player_in_each_team: players}, settings)).expect(200);
         return response.body.id;
     }
 
@@ -86,7 +86,7 @@ describe_with_database('rooms and table games', function () {
             expect(response.body.id).toMatch(/^friday-night-cafe-[a-z0-9]{4}$/);
             const room = (await request(app).get(`/room/${response.body.id}`)).body;
             expect(room.name).toBe('Friday Night Café');
-            expect(room.settings).toEqual({mode: 'standard', history: true, highlights: true, auto_draw_dead: false});
+            expect(room.settings).toEqual({mode: 'standard', history: false, highlights: false, auto_draw_dead: false, turn_seconds: 90});
         });
 
         test('a table without a name gets a generated one', async function () {
@@ -111,9 +111,14 @@ describe_with_database('rooms and table games', function () {
                 number_of_team: 2, number_of_player_in_each_team: 1, mode: 'training', history: false, highlights: 'false', auto_draw_dead: true,
             }).expect(200);
             const room = (await request(app).get(`/room/${response.body.id}`)).body;
-            expect(room.settings).toEqual({mode: 'training', history: false, highlights: false, auto_draw_dead: true});
+            expect(room.settings).toEqual({mode: 'training', history: false, highlights: false, auto_draw_dead: true, turn_seconds: 90});
             const bad = await agents.alice.post('/room/create').send({number_of_team: 2, number_of_player_in_each_team: 1, mode: 'easy'});
             expect([bad.status, bad.body.error]).toEqual([400, 'INVALID_SETTINGS']);
+
+            const custom = await agents.alice.post('/room/create').send({number_of_team: 2, number_of_player_in_each_team: 1, turn_seconds: 45});
+            expect((await request(app).get(`/room/${custom.body.id}`)).body.settings.turn_seconds).toBe(45);
+            const too_short = await agents.alice.post('/room/create').send({number_of_team: 2, number_of_player_in_each_team: 1, turn_seconds: 5});
+            expect([too_short.status, too_short.body.error]).toEqual([400, 'INVALID_SETTINGS']);
         });
 
         test('refuses a bad name or setting', async function () {
@@ -126,9 +131,9 @@ describe_with_database('rooms and table games', function () {
 
         test('only the host changes settings, and only before the game starts', async function () {
             const id = await open_room('alice');
-            const changed = await agents.alice.patch(`/room/${id}/settings`).send({name: 'Renamed', highlights: false});
+            const changed = await agents.alice.patch(`/room/${id}/settings`).send({name: 'Renamed', highlights: true});
             expect(changed.status).toBe(200);
-            expect(changed.body).toMatchObject({id, name: 'Renamed', settings: {history: true, highlights: false, auto_draw_dead: false}});
+            expect(changed.body).toMatchObject({id, name: 'Renamed', settings: {history: false, highlights: true, auto_draw_dead: false}});
 
             expect((await agents.bob.patch(`/room/${id}/settings`).send({history: false})).body.error).toBe('NOT_HOST');
             expect((await request(app).patch(`/room/${id}/settings`).send({history: false})).status).toBe(401);
@@ -359,7 +364,7 @@ describe_with_database('rooms and table games', function () {
 
     describe('history', function () {
         test('GET /room/:id/turns lists the moves with their players, without hands', async function () {
-            const id = await open_room('carol', 2, 1);
+            const id = await open_room('carol', 2, 1, {history: true});
             await join('carol', id, 'TEAM_1');
             await join('bob', id, 'TEAM_2');
             expect((await request(app).get(`/room/${id}/turns`)).body.error).toBe('GAME_NOT_FOUND');
@@ -391,7 +396,7 @@ describe_with_database('rooms and table games', function () {
             await join('bob', id, 'TEAM_2');
             const started = await agents.carol.post(`/room/${id}/start`).expect(200);
             expect(started.body.name).toBe('Quiet');
-            expect(started.body.settings).toEqual({mode: 'standard', history: false, highlights: true, auto_draw_dead: false});
+            expect(started.body.settings).toEqual({mode: 'standard', history: false, highlights: false, auto_draw_dead: false, turn_seconds: 90});
 
             for (let i = 0; i < 3; i++) {
                 const move = await legal_play(id);
@@ -404,7 +409,7 @@ describe_with_database('rooms and table games', function () {
             const turns = await request(app).get(`/room/${id}/turns`);
             expect([turns.status, turns.body.error]).toEqual([403, 'HISTORY_DISABLED']);
             // Still recorded, so "Your tables" can count the moves.
-            const rooms = (await agents.carol.get('/user/rooms')).body;
+            const rooms = (await agents.carol.get('/user/rooms')).body.rooms;
             expect(rooms.find(function (r) {
                 return r.id === id;
             })).toMatchObject({name: 'Quiet', move_count: 3, settings: {history: false}});
@@ -422,7 +427,8 @@ describe_with_database('rooms and table games', function () {
             await agents[move.handle].post(`/room/${played}/game/play`).send(move.body).expect(200);
             await open_room('frank', 2, 1); // not Erin's
 
-            const rooms = (await agents.erin.get('/user/rooms')).body;
+            const {rooms, total, page, pages} = (await agents.erin.get('/user/rooms')).body;
+            expect({total, page, pages}).toEqual({total: 2, page: 1, pages: 1});
             expect(rooms.map(function (r) {
                 return [r.id, r.administrator, r.your_team, r.seats_taken, r.status, r.move_count];
             })).toEqual([
@@ -434,6 +440,29 @@ describe_with_database('rooms and table games', function () {
 
             const response = await request(app).get('/user/rooms');
             expect(response.status).toBe(401);
+        });
+
+        test('GET /user/rooms pages through the tables without repeats', async function () {
+            await sign_up('gina');
+            const opened = [];
+            for (let i = 0; i < 5; i++) opened.unshift(await open_room('gina'));
+
+            const first = (await agents.gina.get('/user/rooms?page=1&per_page=2')).body;
+            expect({page: first.page, per_page: first.per_page, total: first.total, pages: first.pages})
+                .toEqual({page: 1, per_page: 2, total: 5, pages: 3});
+            const pages = [first];
+            for (const page of [2, 3]) pages.push((await agents.gina.get(`/user/rooms?page=${page}&per_page=2`)).body);
+            expect(pages.flatMap(function (p) {
+                return p.rooms.map(function (r) {
+                    return r.id;
+                });
+            })).toEqual(opened);
+
+            expect((await agents.gina.get('/user/rooms?page=9&per_page=2')).body.rooms).toEqual([]);
+            // Bad or missing numbers fall back to the first page of 10; per_page is capped at 50.
+            const fallback = (await agents.gina.get('/user/rooms?page=zero&per_page=-3')).body;
+            expect([fallback.page, fallback.per_page, fallback.rooms.length]).toEqual([1, 10, 5]);
+            expect((await agents.gina.get('/user/rooms?per_page=500')).body.per_page).toBe(50);
         });
     });
 });
