@@ -3,7 +3,7 @@ const db_game = require('../database/games');
 const {transaction} = require('../database/pool');
 const socket_server = require('../socket');
 const {broadcast_room} = require('./room');
-const {RuleError, create_game, apply_move, view_for} = require('../entity/sequence_game');
+const {RuleError, create_game, apply_move, view_for, random_move} = require('../entity/sequence_game');
 const {suggest_move} = require('../entity/hints');
 
 // A game played at a room's table. Errors are JSON: {error: CODE, message}.
@@ -175,4 +175,89 @@ const pass = move_handler(function () {
     return {type: 'pass'};
 });
 
-module.exports = {start: handler(start), get: handler(get), turns: handler(turns), play, exchange, pass};
+// Marks what the timed-out player's moves did (this turn's place, remove, exchange or pass entries) with
+// `timed_out: true`, so logs can say the move was made for them. The next player's auto-draw stays unmarked.
+function mark_timed_out(previous, next) {
+    const MOVES = ['place', 'remove', 'exchange', 'pass'];
+    const added = next.log.slice(previous.log.length).map(function (entry) {
+        return entry.turn === previous.turn && MOVES.includes(entry.kind) ? Object.assign({}, entry, {timed_out: true}) : entry;
+    });
+    return Object.assign({}, next, {log: previous.log.concat(added)});
+}
+
+/**
+ * Plays for the current player of `room_id` if their turn timer has run out: a random playable card (after
+ * exchanging a dead card if nothing else can be played), or a pass. Runs in one transaction with the game locked
+ * and checks the deadline again inside it, so a move that just made it in time wins. Returns whether it played.
+ */
+async function expire_turn(room_id, now = new Date()) {
+    const played = await transaction(async function (client) {
+        const {room, game} = await find_game(room_id, client);
+        const deadline = await db_game.get_deadline({room_id, client});
+        if (game.winner !== null || deadline === null || deadline > now) return null;
+
+        const player = game.players[game.current].handle;
+        let state = game;
+        // An exchange keeps the turn, so keep going until the turn is over (at most an exchange and a play).
+        do {
+            const move = random_move(state);
+            const next = stamp_turn(state, mark_timed_out(state, apply_move(state, player, move)));
+            await db_game.record_move({
+                room_id, previous: state, next, handle: player, move,
+                turn_deadline: turn_deadline(room, next), timed_out: true, client,
+            });
+            state = next;
+        } while (state.winner === null && state.turn === game.turn && state.current === game.current);
+        return state;
+    });
+    if (played !== null) broadcast_game(room_id);
+    return played !== null;
+}
+
+/** Plays for every player whose turn timer has run out. Returns how many turns it played. */
+async function expire_overdue_turns(now = new Date()) {
+    let count = 0;
+    for (const room_id of await db_game.overdue({now})) {
+        try {
+            if (await expire_turn(room_id, now)) count++;
+        } catch (e) {
+            console.error(`Could not play the timed-out turn at ${room_id}:`, e);
+        }
+    }
+    return count;
+}
+
+/**
+ * Checks for timed-out turns every `interval_ms`, one sweep at a time. Started by bin/www (not by the app, so
+ * tests stay in control). Returns a function that stops it.
+ */
+function start_turn_timer({interval_ms = 1000} = {}) {
+    let running = false;
+    const timer = setInterval(function () {
+        if (running) return;
+        running = true;
+        expire_overdue_turns()
+            .catch(function (e) {
+                console.error('Turn timer sweep failed:', e.message);
+            })
+            .finally(function () {
+                running = false;
+            });
+    }, interval_ms);
+    timer.unref();
+    return function () {
+        clearInterval(timer);
+    };
+}
+
+module.exports = {
+    start: handler(start),
+    get: handler(get),
+    turns: handler(turns),
+    play,
+    exchange,
+    pass,
+    expire_turn,
+    expire_overdue_turns,
+    start_turn_timer,
+};

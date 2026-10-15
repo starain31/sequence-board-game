@@ -170,6 +170,7 @@ The GameView for the session's user. Anyone may watch; only seated players see a
   "name": "Friday Night",            // the room's name
   "hint": null,                      // training games only, for the current player, see below
   "turn_started_at": "2026-10-15T06:55:15.349Z",   // when the current turn began (null for games stored before)
+  "turn_deadline": "2026-10-15T06:56:45.349Z",     // when the turn's timer runs out (null once the game is over)
   "server_time": "2026-10-15T06:55:21.002Z",       // the server's clock now, to run a turn timer despite clock skew
   "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90},
   "log": [{"kind": "place", "turn": 1, "player": "Jabir ibne kamal", "team": 0, "card": "4-Spade", "pos": {"row": 1, "column": 5}, "wild": false}, …]
@@ -187,6 +188,11 @@ The GameView for the session's user. Anyone may watch; only seated players see a
 
 `reason.kind` is `sequence` (completes one), `extend` (builds your line to `length`), `block` (takes the cell that
 would give `team` a line of `length`), `break` (a one-eyed jack breaking `team`'s line of `length`), `dead` or `pass`.
+
+When `turn_deadline` passes, the server plays for the current player: a random card from their hand that can be
+played, on a random legal cell (after exchanging a dead card if nothing else can be played; a pass if nothing can be
+done). It is recorded like any move, with `timed_out: true` on the turn and on the log entries it made, and
+`game_updated` is broadcast.
 
 ### `POST /room/:id/game/play` (auth) — body `{hand_index, row, column}`
 ### `POST /room/:id/game/exchange` (auth) — body `{hand_index}` (a dead card, once per turn, before playing)
@@ -210,6 +216,7 @@ game has started but nobody has moved.
   "card": "4-Spade",                   // null for a pass
   "cell": {"row": 1, "column": 5},     // only for a play
   "events": [{"kind": "place", …}],    // the log entries the move produced (also sequence and win)
+  "timed_out": false,                  // true when the server played it because the turn timer ran out
   "created_at": "2026-10-15T05:48:22.705Z"
 }, …]
 ```

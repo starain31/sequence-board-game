@@ -68,7 +68,8 @@ database/
   migrate.js          SQL migration runner (also `npm run db:migrate`), tested in migrate.spec.js
   migrations/         Numbered .sql files: 0001 users, 0002 session, 0003 rooms + room_seats, 0004 games + turns,
                       0005 room names, slug codes and settings, 0006 game mode,
-                      0007 highlights and history off by default, 0008 turn timer
+                      0007 highlights and history off by default, 0008 turn timer,
+                      0009 turn deadlines
   users.js            Accounts in the users table; only find_credentials() reads password_hash
   seed.js             Development accounts jabir/1, sakib/123 (`npm run db:seed`)
   test_database.js    Gives a spec its own migrated schema (needs DATABASE_URL)
@@ -135,6 +136,12 @@ With history off, `turns` is still written (the "Your tables" move count uses it
 
 The rules engine has no clock: `controller/room_game.js` stamps `turn_started_at` into the stored state whenever
 a new turn begins (an exchange keeps the turn and its time), so turn timers survive restarts too.
+
+Each game also stores `turn_deadline` (the turn's start plus the room's `turn_seconds`). `bin/www` starts a sweeper
+(`start_turn_timer()` in `controller/room_game.js`) that checks once a second for games past their deadline and plays
+a random card for the current player (`random_move()`), in the same locked transaction as a normal move. It re-checks
+the deadline inside the transaction, so a move made just in time wins. The app itself doesn't start the sweeper, so
+tests drive it with `expire_overdue_turns()`. Games resumed after a restart keep their deadlines.
 
 Everything a client needs to resume is in these tables: who sat where, the settings, and the full game state.
 After a restart, `GET /user/rooms` lists a player's tables and `GET /room/:id/game` returns the game as it was.
