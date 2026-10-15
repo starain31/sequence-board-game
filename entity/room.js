@@ -15,6 +15,15 @@ const NOUNS = ['badger', 'comet', 'falcon', 'harbor', 'lantern', 'maple', 'meado
  */
 const GAME_MODES = Object.freeze(['standard', 'training']);
 
+/**
+ * How players find their dead cards. `manual`: nothing marks them; a player who spots one asks to exchange it, and
+ * the server checks it really is dead. `indicator`: dead cards are marked in the hand (and can be auto-drawn).
+ */
+const DEAD_CARD_MODES = Object.freeze(['manual', 'indicator']);
+
+/** Dead card exchanges a player may make in one turn: unlimited (null) or a number from 1 to this. */
+const EXCHANGES_PER_TURN_MAX = 10;
+
 /** Turn timer choices offered to hosts, in seconds. Any whole number of seconds in the allowed range also works. */
 const TURN_TIMER_PRESETS = Object.freeze([30, 60, 90, 120, 180]);
 const TURN_SECONDS_MIN = 15;
@@ -27,8 +36,12 @@ const DEFAULT_SETTINGS = Object.freeze({
     history: false,
     // Legal cells light up when a card is picked. Off unless the host turns it on.
     highlights: false,
-    // A dead card is exchanged automatically at the start of its owner's turn.
+    // A dead card is exchanged automatically at the start of its owner's turn (indicator mode only).
     auto_draw_dead: false,
+    // Players spot dead cards themselves and ask to exchange them.
+    dead_cards: 'manual',
+    // Dead card exchanges per turn: null is unlimited.
+    exchanges_per_turn: null,
     // How long each player has for a turn.
     turn_seconds: 90,
 });
@@ -134,9 +147,26 @@ function parse_turn_seconds(value) {
     );
 }
 
+function parse_dead_cards(value) {
+    if (DEAD_CARD_MODES.includes(value)) return value;
+    throw new RoomError('INVALID_SETTINGS', `The setting "dead_cards" must be one of: ${DEAD_CARD_MODES.join(', ')}.`);
+}
+
+function parse_exchanges_per_turn(value) {
+    if (value === null || value === 'unlimited') return null;
+    const count = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+    if (Number.isInteger(count) && count >= 1 && count <= EXCHANGES_PER_TURN_MAX) return count;
+    throw new RoomError(
+        'INVALID_SETTINGS',
+        `Dead card exchanges per turn must be "unlimited" or a whole number from 1 to ${EXCHANGES_PER_TURN_MAX}.`
+    );
+}
+
 const PARSERS = {
     mode: parse_mode,
     turn_seconds: parse_turn_seconds,
+    dead_cards: parse_dead_cards,
+    exchanges_per_turn: parse_exchanges_per_turn,
 };
 
 function parse_flag(value, key) {
@@ -162,6 +192,8 @@ module.exports = {
     RoomError,
     DEFAULT_SETTINGS,
     GAME_MODES,
+    DEAD_CARD_MODES,
+    EXCHANGES_PER_TURN_MAX,
     TURN_TIMER_PRESETS,
     TURN_SECONDS_MIN,
     TURN_SECONDS_MAX,

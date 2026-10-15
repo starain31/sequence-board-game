@@ -98,7 +98,10 @@ describe_with_database('rooms and table games', function () {
             expect(response.body.id).toMatch(/^friday-night-cafe-[a-z0-9]{4}$/);
             const room = (await request(app).get(`/room/${response.body.id}`)).body;
             expect(room.name).toBe('Friday Night Café');
-            expect(room.settings).toEqual({mode: 'standard', history: false, highlights: false, auto_draw_dead: false, turn_seconds: 90});
+            expect(room.settings).toEqual({
+                mode: 'standard', history: false, highlights: false, auto_draw_dead: false, turn_seconds: 90,
+                dead_cards: 'manual', exchanges_per_turn: null,
+            });
         });
 
         test('a table without a name gets a generated one', async function () {
@@ -123,7 +126,10 @@ describe_with_database('rooms and table games', function () {
                 number_of_team: 2, number_of_player_in_each_team: 1, mode: 'training', history: false, highlights: 'false', auto_draw_dead: true,
             }).expect(200);
             const room = (await request(app).get(`/room/${response.body.id}`)).body;
-            expect(room.settings).toEqual({mode: 'training', history: false, highlights: false, auto_draw_dead: true, turn_seconds: 90});
+            expect(room.settings).toEqual({
+                mode: 'training', history: false, highlights: false, auto_draw_dead: true, turn_seconds: 90,
+                dead_cards: 'manual', exchanges_per_turn: null,
+            });
             const bad = await agents.alice.post('/room/create').send({number_of_team: 2, number_of_player_in_each_team: 1, mode: 'easy'});
             expect([bad.status, bad.body.error]).toEqual([400, 'INVALID_SETTINGS']);
 
@@ -317,7 +323,7 @@ describe_with_database('rooms and table games', function () {
 
         test('rooms and games survive a server restart, with their name and rules', async function () {
             const id = (await agents.bob.post('/room/create').send({
-                number_of_team: 2, number_of_player_in_each_team: 1, name: 'Resume me', highlights: false, auto_draw_dead: true,
+                number_of_team: 2, number_of_player_in_each_team: 1, name: 'Resume me', highlights: false, auto_draw_dead: true, dead_cards: 'indicator', exchanges_per_turn: 2,
             }).expect(200)).body.id;
             await join('bob', id, 'TEAM_1');
             await join('dave', id, 'TEAM_2');
@@ -339,8 +345,30 @@ describe_with_database('rooms and table games', function () {
             expect(Object.assign({}, after, {server_time: null})).toEqual(Object.assign({}, before, {server_time: null}));
             expect(after.turn_started_at).toEqual(expect.any(String));
             const {rows: [stored]} = await database.pool.query('SELECT state FROM games WHERE room_id = $1', [id]);
-            expect(stored.state.rules).toEqual({auto_draw_dead: true});
+            expect(stored.state.rules).toEqual({auto_draw_dead: true, exchanges_per_turn: 2});
         });
+    });
+
+    test('with dead cards found by hand, a player may ask for an exchange, and only a dead card is exchanged', async function () {
+        const id = await open_room('alice', 2, 1, {exchanges_per_turn: 3});
+        expect((await request(app).get(`/room/${id}`)).body.settings).toMatchObject({dead_cards: 'manual', exchanges_per_turn: 3});
+        await join('alice', id, 'TEAM_1');
+        await join('bob', id, 'TEAM_2');
+        await agents.alice.post(`/room/${id}/start`).expect(200);
+        const state = await require('../database/games').get({room_id: id});
+        const handle = state.players[state.current].handle;
+        const view = (await agents[handle].get(`/room/${id}/game`)).body;
+        expect(view).toMatchObject({can_exchange: true, exchanges_left: 3});
+
+        // A fresh deal has no dead card, so the server says the card isn't dead and nothing changes.
+        const refused = await agents[handle].post(`/room/${id}/game/exchange`).send({hand_index: 0});
+        expect([refused.status, refused.body.error]).toEqual([400, 'NOT_DEAD']);
+        expect((await agents[handle].get(`/room/${id}/game`)).body.hand).toEqual(view.hand);
+
+        const marked = await open_room('alice', 2, 1, {dead_cards: 'indicator', exchanges_per_turn: 'unlimited'});
+        expect((await request(app).get(`/room/${marked}`)).body.settings).toMatchObject({dead_cards: 'indicator', exchanges_per_turn: null});
+        const bad = await agents.alice.post('/room/create').send({number_of_team: 2, number_of_player_in_each_team: 1, exchanges_per_turn: 0});
+        expect([bad.status, bad.body.error]).toEqual([400, 'INVALID_SETTINGS']);
     });
 
     test('a pass and an exchange are recorded without a cell', async function () {
@@ -630,7 +658,10 @@ describe_with_database('rooms and table games', function () {
             await join('bob', id, 'TEAM_2');
             const started = await agents.carol.post(`/room/${id}/start`).expect(200);
             expect(started.body.name).toBe('Quiet');
-            expect(started.body.settings).toEqual({mode: 'standard', history: false, highlights: false, auto_draw_dead: false, turn_seconds: 90});
+            expect(started.body.settings).toEqual({
+                mode: 'standard', history: false, highlights: false, auto_draw_dead: false, turn_seconds: 90,
+                dead_cards: 'manual', exchanges_per_turn: null,
+            });
 
             for (let i = 0; i < 3; i++) {
                 const move = await legal_play(id);

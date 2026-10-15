@@ -20,6 +20,8 @@ const SETTING_COLUMNS = {
     highlights: 'highlights_enabled',
     auto_draw_dead: 'auto_draw_dead',
     turn_seconds: 'turn_seconds',
+    dead_cards: 'dead_cards',
+    exchanges_per_turn: 'exchanges_per_turn',
 };
 
 const SETTINGS_SELECT = Object.entries(SETTING_COLUMNS).map(function ([key, column]) {
@@ -76,7 +78,8 @@ async function update({id, name, settings, client = pool}) {
     );
 }
 
-// {id, name, administrator, administrator_name, team_count, players_per_team, created_at, settings: {mode, history, highlights, auto_draw_dead, turn_seconds},
+// {id, name, administrator, administrator_name, team_count, players_per_team, created_at, settings: {mode, history, highlights, auto_draw_dead, turn_seconds,
+//  dead_cards, exchanges_per_turn},
 //  teams: [{handle, players: [{handle, name} | null]}]} or undefined. `lock` holds the room row until the
 // transaction ends, which serialises joins, starts and settings changes.
 async function get({id, client = pool, lock = false}) {

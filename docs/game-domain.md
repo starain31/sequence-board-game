@@ -64,5 +64,7 @@ Compare with the [official rules](https://en.wikipedia.org/wiki/Sequence_(game))
 - **Win condition**: 2 sequences with 2 teams, 1 with 3 teams. There is no game-over state at all.
 - **Corners as free chips** that count for every team. Here they simply can't be played.
 - **Protection**: a one-eyed jack must not remove a chip that is part of a completed sequence.
-- **Dead cards**: exchanging a card whose two board cells are both taken.
+- **Dead cards**: exchanging a card whose two board cells are both taken. Table games choose how they're found (`dead_cards`: marked in
+  the hand, or spotted by the players, who ask to exchange them) and how many may be exchanged per turn
+  (`exchanges_per_turn`: unlimited by default).
 - Deck exhaustion (`deck.pop()` returns `undefined` once the deck is empty).
