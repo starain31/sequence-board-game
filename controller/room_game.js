@@ -176,7 +176,8 @@ async function start(req, res) {
         if (!db_room.is_full(room)) throw new GameError('TABLE_NOT_FULL', 'Every seat must be taken before the game can start.');
 
         // Players are still on the table page, so the first turn usually starts paused until its player opens the game.
-        const created = follow_presence(room, stamp_turn(undefined, create_game({teams: room.teams, rules: room.settings})));
+        const now = new Date();
+        const created = follow_presence(room, stamp_turn(undefined, create_game({teams: room.teams, rules: room.settings}), now), now);
         await db_game.create({room_id: id, state: created, turn_deadline: turn_deadline(room, created), client});
         return {room, game: created};
     });
