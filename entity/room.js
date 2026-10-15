@@ -15,6 +15,11 @@ const NOUNS = ['badger', 'comet', 'falcon', 'harbor', 'lantern', 'maple', 'meado
  */
 const GAME_MODES = Object.freeze(['standard', 'training']);
 
+/** Turn timer choices offered to hosts, in seconds. Any whole number of seconds in the allowed range also works. */
+const TURN_TIMER_PRESETS = Object.freeze([30, 60, 90, 120, 180]);
+const TURN_SECONDS_MIN = 15;
+const TURN_SECONDS_MAX = 600;
+
 /** What a room does when its creator doesn't say otherwise. */
 const DEFAULT_SETTINGS = Object.freeze({
     mode: 'standard',
@@ -24,6 +29,8 @@ const DEFAULT_SETTINGS = Object.freeze({
     highlights: false,
     // A dead card is exchanged automatically at the start of its owner's turn.
     auto_draw_dead: false,
+    // How long each player has for a turn.
+    turn_seconds: 90,
 });
 
 class RoomError extends Error {
@@ -97,6 +104,20 @@ function parse_mode(value) {
     throw new RoomError('INVALID_SETTINGS', `The setting "mode" must be one of: ${GAME_MODES.join(', ')}.`);
 }
 
+function parse_turn_seconds(value) {
+    const seconds = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
+    if (Number.isInteger(seconds) && seconds >= TURN_SECONDS_MIN && seconds <= TURN_SECONDS_MAX) return seconds;
+    throw new RoomError(
+        'INVALID_SETTINGS',
+        `The turn timer must be a whole number of seconds from ${TURN_SECONDS_MIN} to ${TURN_SECONDS_MAX}.`
+    );
+}
+
+const PARSERS = {
+    mode: parse_mode,
+    turn_seconds: parse_turn_seconds,
+};
+
 function parse_flag(value, key) {
     if (value === true || value === 'true') return true;
     if (value === false || value === 'false') return false;
@@ -105,13 +126,13 @@ function parse_flag(value, key) {
 
 /**
  * Reads settings from a request body. Only keys in DEFAULT_SETTINGS are read; a missing key keeps the value
- * from `current` (the defaults for a new room). Throws INVALID_SETTINGS for an unknown mode or a flag that isn't
- * a boolean.
+ * from `current` (the defaults for a new room). Throws INVALID_SETTINGS for an unknown mode, a turn timer out of
+ * range, or a flag that isn't a boolean.
  */
 function parse_settings(body = {}, current = DEFAULT_SETTINGS) {
     const settings = Object.assign({}, current);
     Object.keys(DEFAULT_SETTINGS).forEach(function (key) {
-        if (body[key] !== undefined) settings[key] = key === 'mode' ? parse_mode(body[key]) : parse_flag(body[key], key);
+        if (body[key] !== undefined) settings[key] = PARSERS[key] ? PARSERS[key](body[key]) : parse_flag(body[key], key);
     });
     return settings;
 }
@@ -120,6 +141,9 @@ module.exports = {
     RoomError,
     DEFAULT_SETTINGS,
     GAME_MODES,
+    TURN_TIMER_PRESETS,
+    TURN_SECONDS_MIN,
+    TURN_SECONDS_MAX,
     NAME_MAX_LENGTH,
     generate_name,
     normalize_name,

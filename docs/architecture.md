@@ -68,7 +68,7 @@ database/
   migrate.js          SQL migration runner (also `npm run db:migrate`), tested in migrate.spec.js
   migrations/         Numbered .sql files: 0001 users, 0002 session, 0003 rooms + room_seats, 0004 games + turns,
                       0005 room names, slug codes and settings, 0006 game mode,
-                      0007 highlights and history off by default
+                      0007 highlights and history off by default, 0008 turn timer
   users.js            Accounts in the users table; only find_credentials() reads password_hash
   seed.js             Development accounts jabir/1, sakib/123 (`npm run db:seed`)
   test_database.js    Gives a spec its own migrated schema (needs DATABASE_URL)
@@ -118,7 +118,7 @@ the whole server, not one per room.
 
 | Table | One row per | Notes |
 |---|---|---|
-| `rooms` | table | Code (`id`, a slug of the name such as `friday-night-k3m9`; older rooms have numeric codes), name, creator, team layout, settings (`game_mode`, `history_enabled`, `highlights_enabled`, `auto_draw_dead`), creation time |
+| `rooms` | table | Code (`id`, a slug of the name such as `friday-night-k3m9`; older rooms have numeric codes), name, creator, team layout, settings (`game_mode`, `history_enabled`, `highlights_enabled`, `auto_draw_dead`, `turn_seconds`), creation time |
 | `room_seats` | taken seat | Primary key (room, team, seat) and unique (room, user): one player per seat, one seat per player |
 | `games` | room's game | Full rules state as JSONB (hands and deck included, so only `view_for()` output is ever sent), started / updated / finished time, winning team |
 | `turns` | accepted move | Append-only: move number, game turn, player, team, kind, card, cell, and the log events the move produced |

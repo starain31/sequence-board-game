@@ -43,7 +43,7 @@ The tables you created or sat at, newest first (at most 50). `401 NOT_SIGNED_IN`
 [{
   "id": "friday-night-k3m9", "name": "Friday Night", "created_at": "…", "administrator": "jabir",
   "team_count": 2, "players_per_team": 1, "seats_taken": 2,
-  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false},
+  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90},
   "your_team": 0,                      // null when you only created the table
   "status": "playing",                 // open (no game yet) | playing | finished
   "started_at": "…", "finished_at": null, "winner_team": null,
@@ -56,9 +56,9 @@ The tables you created or sat at, newest first (at most 50). `401 NOT_SIGNED_IN`
 Rooms, seats, games and every move are stored in PostgreSQL, so tables and games in progress survive restarts.
 
 ### `POST /room/create` (auth)
-Body `{number_of_team, number_of_player_in_each_team, name?, mode?, history?, highlights?, auto_draw_dead?}`. Counts
-are numbers or numeric strings; `mode` is `"standard"` or `"training"`; the other settings are booleans (or `"true"`
-/ `"false"`).
+Body `{number_of_team, number_of_player_in_each_team, name?, mode?, history?, highlights?, auto_draw_dead?,
+turn_seconds?}`. Counts are numbers or numeric strings; `mode` is `"standard"` or `"training"`; `turn_seconds` is a
+whole number from 15 to 600; the other settings are booleans (or `"true"` / `"false"`).
 `200 {id}`. `id` is the table's code: a slug of its name plus a 4-character suffix, such as `"friday-night-k3m9"`.
 Without a name the table gets a generated one ("Lucky Otter"). The signed-in user becomes `administrator` (the host).
 Errors are JSON `{error, message}`: `401 NOT_SIGNED_IN`, `400 UNSUPPORTED_TABLE` for a table size the rules
@@ -72,12 +72,13 @@ Settings and their defaults:
 | `mode` | `"standard"` | `"training"`: the player whose turn it is gets a `hint` in the GameView. Standard games never get hints |
 | `history` | `false` | Off: `GET /room/:id/turns` is `403 HISTORY_DISABLED` and the GameView's `log` keeps only the latest move |
 | `highlights` | `false` | Off: clients don't light up legal cells (the server only reports the setting) |
+| `turn_seconds` | `90` | Seconds each player has for a turn. Clients offer 30, 60, 90, 120 and 180, or any whole number from 15 to 600 |
 | `auto_draw_dead` | `false` | On: a dead card is exchanged automatically when its owner's turn starts (their one exchange for that turn), logged as `{kind: "exchange", auto: true, …}` |
 
 Room codes created before slugs are numeric strings (`"731791746123232"`) and still work.
 
 ### `PATCH /room/:id/settings` (auth, host)
-Body `{name?, mode?, history?, highlights?, auto_draw_dead?}`; missing keys keep their value. The code never changes.
+Body `{name?, mode?, history?, highlights?, auto_draw_dead?, turn_seconds?}`; missing keys keep their value. The code never changes.
 `200` with the Room, and `room_updated` is broadcast. `401 NOT_SIGNED_IN`, `403 NOT_HOST`, `404 ROOM_NOT_FOUND`,
 `409 GAME_ALREADY_STARTED` (settings are fixed once the game starts), `400 INVALID_NAME | INVALID_SETTINGS`.
 
@@ -90,7 +91,7 @@ Body `{name?, mode?, history?, highlights?, auto_draw_dead?}`; missing keys keep
   "administrator": "jabir",
   "id": "friday-night-k3m9",
   "name": "Friday Night",
-  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false},
+  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90},
   "created_at": "2026-10-15T05:48:22.696Z",
   "teams": [
     { "handle": "TEAM_1", "players": [ {"handle": "jabir", "name": "Jabir ibne kamal"}, null ] },
@@ -150,7 +151,7 @@ The GameView for the session's user. Anyone may watch; only seated players see a
   "hint": null,                      // training games only, for the current player, see below
   "turn_started_at": "2026-10-15T06:55:15.349Z",   // when the current turn began (null for games stored before)
   "server_time": "2026-10-15T06:55:21.002Z",       // the server's clock now, to run a turn timer despite clock skew
-  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false},
+  "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90},
   "log": [{"kind": "place", "turn": 1, "player": "Jabir ibne kamal", "team": 0, "card": "4-Spade", "pos": {"row": 1, "column": 5}, "wild": false}, …]
 }
 ```

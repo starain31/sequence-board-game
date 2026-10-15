@@ -86,7 +86,7 @@ describe_with_database('rooms and table games', function () {
             expect(response.body.id).toMatch(/^friday-night-cafe-[a-z0-9]{4}$/);
             const room = (await request(app).get(`/room/${response.body.id}`)).body;
             expect(room.name).toBe('Friday Night Café');
-            expect(room.settings).toEqual({mode: 'standard', history: false, highlights: false, auto_draw_dead: false});
+            expect(room.settings).toEqual({mode: 'standard', history: false, highlights: false, auto_draw_dead: false, turn_seconds: 90});
         });
 
         test('a table without a name gets a generated one', async function () {
@@ -111,9 +111,14 @@ describe_with_database('rooms and table games', function () {
                 number_of_team: 2, number_of_player_in_each_team: 1, mode: 'training', history: false, highlights: 'false', auto_draw_dead: true,
             }).expect(200);
             const room = (await request(app).get(`/room/${response.body.id}`)).body;
-            expect(room.settings).toEqual({mode: 'training', history: false, highlights: false, auto_draw_dead: true});
+            expect(room.settings).toEqual({mode: 'training', history: false, highlights: false, auto_draw_dead: true, turn_seconds: 90});
             const bad = await agents.alice.post('/room/create').send({number_of_team: 2, number_of_player_in_each_team: 1, mode: 'easy'});
             expect([bad.status, bad.body.error]).toEqual([400, 'INVALID_SETTINGS']);
+
+            const custom = await agents.alice.post('/room/create').send({number_of_team: 2, number_of_player_in_each_team: 1, turn_seconds: 45});
+            expect((await request(app).get(`/room/${custom.body.id}`)).body.settings.turn_seconds).toBe(45);
+            const too_short = await agents.alice.post('/room/create').send({number_of_team: 2, number_of_player_in_each_team: 1, turn_seconds: 5});
+            expect([too_short.status, too_short.body.error]).toEqual([400, 'INVALID_SETTINGS']);
         });
 
         test('refuses a bad name or setting', async function () {
@@ -391,7 +396,7 @@ describe_with_database('rooms and table games', function () {
             await join('bob', id, 'TEAM_2');
             const started = await agents.carol.post(`/room/${id}/start`).expect(200);
             expect(started.body.name).toBe('Quiet');
-            expect(started.body.settings).toEqual({mode: 'standard', history: false, highlights: false, auto_draw_dead: false});
+            expect(started.body.settings).toEqual({mode: 'standard', history: false, highlights: false, auto_draw_dead: false, turn_seconds: 90});
 
             for (let i = 0; i < 3; i++) {
                 const move = await legal_play(id);
