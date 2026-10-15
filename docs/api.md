@@ -255,6 +255,7 @@ Same origin and port as HTTP, default path `/socket.io`. The server also serves 
 | Event (server → client) | Payload | When |
 |---|---|---|
 | `room_updated` | Room (see above) | After every successful join or game start, sent to **every** connected socket |
+| `teams_shuffled` | `{room_id, by: {handle, name}, room}` | After the host shuffles the teams (`room` is the new seating), so clients can tell players their new team |
 | `game_updated` | `{room_id}` | After a table game starts or changes. Re-fetch `GET /room/:id/game`; the payload has no hands |
 
 No client → server events are handled. For the legacy game there are no events, so clients must re-fetch

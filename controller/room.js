@@ -124,7 +124,7 @@ async function shuffle(req, res) {
         throw new RoomError('NOT_SIGNED_IN', 'Sign in to change seats.');
     }
     const {id} = req.params;
-    await transaction(async function (client) {
+    const host = await transaction(async function (client) {
         const room = await db_room.get({id, client, lock: true});
         if (room === undefined) {
             throw new RoomError('ROOM_NOT_FOUND', 'There is no table with that code.');
@@ -140,8 +140,12 @@ async function shuffle(req, res) {
             return {team, seat, user_id: player};
         });
         await db_room.reseat({id, seats, client});
+        return {handle: room.administrator, name: room.administrator_name};
     });
-    res.send(await room_payload({id}));
+    const payload = await room_payload({id});
+    // Tells every player the teams were reshuffled (not just that a seat changed), with the new seating.
+    socket_server.broadcast({event: 'teams_shuffled', data: {room_id: id, by: host, room: payload}});
+    res.send(payload);
     await broadcast_room({id});
 }
 
