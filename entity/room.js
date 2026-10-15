@@ -1,0 +1,116 @@
+// Rules for a room (a table people sit at): its name, the slug that is its code, and its settings.
+// Pure functions, so they can be tested without a database.
+
+const NAME_MAX_LENGTH = 40;
+const SLUG_BASE_MAX_LENGTH = 32;
+const SLUG_SUFFIX_LENGTH = 4;
+const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+const ADJECTIVES = ['amber', 'brave', 'calm', 'clever', 'cosmic', 'golden', 'jolly', 'lucky', 'mellow', 'nimble', 'quiet', 'rapid', 'royal', 'swift', 'velvet', 'witty'];
+const NOUNS = ['badger', 'comet', 'falcon', 'harbor', 'lantern', 'maple', 'meadow', 'otter', 'pebble', 'raven', 'river', 'summit', 'thistle', 'tiger', 'willow', 'zephyr'];
+
+/** What a room does when its creator doesn't say otherwise. */
+const DEFAULT_SETTINGS = Object.freeze({
+    // Players can read every move so far (the move log and GET /room/:id/turns).
+    history: true,
+    // Legal cells light up when a card is picked.
+    highlights: true,
+    // A dead card is exchanged automatically at the start of its owner's turn.
+    auto_draw_dead: false,
+});
+
+class RoomError extends Error {
+    constructor(code, message) {
+        super(message);
+        this.name = 'RoomError';
+        this.code = code;
+    }
+}
+
+function pick(list, random) {
+    return list[Math.floor(random() * list.length)];
+}
+
+function capitalise(word) {
+    return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+/** A friendly name such as "Lucky Otter", for rooms created without one. */
+function generate_name(random = Math.random) {
+    return `${capitalise(pick(ADJECTIVES, random))} ${capitalise(pick(NOUNS, random))}`;
+}
+
+/** Trims and collapses spaces. Undefined, null or blank gives a generated name. Throws INVALID_NAME. */
+function normalize_name(name, random = Math.random) {
+    if (name === undefined || name === null || String(name).trim() === '') {
+        return generate_name(random);
+    }
+    if (typeof name !== 'string') {
+        throw new RoomError('INVALID_NAME', 'A table name must be text.');
+    }
+    const normalized = name.trim().replace(/\s+/g, ' ');
+    if (normalized.length > NAME_MAX_LENGTH) {
+        throw new RoomError('INVALID_NAME', `A table name can be at most ${NAME_MAX_LENGTH} characters.`);
+    }
+    return normalized;
+}
+
+/** "Friday Night Café!" → "friday-night-cafe". Empty when nothing usable is left. */
+function slugify(text) {
+    return String(text)
+        .normalize('NFKD')
+        .replace(/[̀-ͯ]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, SLUG_BASE_MAX_LENGTH)
+        .replace(/-+$/, '');
+}
+
+/**
+ * The room's code: the slug of its name plus a short random suffix, so two "Friday Night" tables get
+ * different codes, e.g. "friday-night-k3m9".
+ */
+function generate_slug(name, random = Math.random) {
+    const base = slugify(name) || 'table';
+    let suffix = '';
+    for (let i = 0; i < SLUG_SUFFIX_LENGTH; i++) {
+        suffix += Math.floor(random() * 36).toString(36);
+    }
+    return `${base}-${suffix}`;
+}
+
+/** Room codes are slugs. Older rooms have numeric codes, which are slugs too. */
+function is_slug(text) {
+    return typeof text === 'string' && SLUG_PATTERN.test(text);
+}
+
+function parse_flag(value, key) {
+    if (value === true || value === 'true') return true;
+    if (value === false || value === 'false') return false;
+    throw new RoomError('INVALID_SETTINGS', `The setting "${key}" must be true or false.`);
+}
+
+/**
+ * Reads settings from a request body. Only keys in DEFAULT_SETTINGS are read; a missing key keeps the value
+ * from `current` (the defaults for a new room). Throws INVALID_SETTINGS for a value that isn't a boolean.
+ */
+function parse_settings(body = {}, current = DEFAULT_SETTINGS) {
+    const settings = Object.assign({}, current);
+    Object.keys(DEFAULT_SETTINGS).forEach(function (key) {
+        if (body[key] !== undefined) settings[key] = parse_flag(body[key], key);
+    });
+    return settings;
+}
+
+module.exports = {
+    RoomError,
+    DEFAULT_SETTINGS,
+    NAME_MAX_LENGTH,
+    generate_name,
+    normalize_name,
+    slugify,
+    generate_slug,
+    is_slug,
+    parse_settings,
+};
