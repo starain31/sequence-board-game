@@ -28,8 +28,8 @@ Confirmed by running the server and calling it with curl. Highest impact first.
 
 ## Data integrity
 
-12. `room/create` works without a session (`administrator` is undefined) and doesn't validate the team or
-    player counts, so a room can be configured in a way `entity/` would reject.
+12. ~~`room/create` works without a session and doesn't validate the team or player counts~~ (fixed:
+    `401 NOT_SIGNED_IN`, `400 UNSUPPORTED_TABLE`).
 13. ~~The same user can occupy several seats~~ (fixed: `ALREADY_SEATED`; joining without a session is `NOT_SIGNED_IN`).
 14. The legacy game mutates the `require`d `data/board_deck.json` module, so the "static" board data *is*
     the live state. (It also used to empty the shared `data/game_deck.json` array while shuffling, which left table

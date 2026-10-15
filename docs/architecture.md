@@ -44,7 +44,7 @@ database is unreachable.
 Migrations are plain SQL files in `database/migrations/`, applied in file name order, once each, by
 `database/migrate.js`. Applied names are recorded in the `schema_migrations` table. Each file runs in its own
 transaction, so a failing file leaves nothing behind, and an advisory lock serialises servers that start at the
-same time. To change the schema, add the next numbered file (`0002_add_turns.sql`); never edit one that has
+same time. To change the schema, add the next numbered file (`0005_add_something.sql`); never edit one that has
 been applied.
 
 ## Layout
@@ -66,12 +66,12 @@ controller/
 database/
   pool.js             PostgreSQL connection pool (DATABASE_URL) and ping() for /health
   migrate.js          SQL migration runner (also `npm run db:migrate`), tested in migrate.spec.js
-  migrations/         Numbered .sql files: 0001 users, 0002 session
+  migrations/         Numbered .sql files: 0001 users, 0002 session, 0003 rooms + room_seats, 0004 games + turns
   users.js            Accounts in the users table; only find_credentials() reads password_hash
   seed.js             Development accounts jabir/1, sakib/123 (`npm run db:seed`)
   test_database.js    Gives a spec its own migrated schema (needs DATABASE_URL)
-  rooms.js            In-memory rooms keyed by id; seats hold {handle, name}
-  games.js            In-memory table games keyed by room id (kept apart so room payloads never carry hands)
+  rooms.js            Rooms and seats; join() takes a seat under a room lock; list_for_user() for history
+  games.js            Table game state (JSONB) and the turns history; kept apart so room payloads never carry hands
 entity/               Domain layer (tested)
   user.js             Sign-up rules, scrypt password hashing
   sequence_game.js    Full rules for table games: dealing, turns, jacks, dead cards, sequences, win. Wired to HTTP
@@ -97,7 +97,7 @@ public/               Old Vue 2 prototype UI (index.html, views/, javascripts/) 
 | Turn order | Enforced | Enforced, teams alternate | None |
 | Draw after play | Yes, reshuffles the discard pile | Yes | Yes |
 | Sequences / win / dead cards | Yes | No | No |
-| Board state | Per-game, immutable updates | Per-game copy | Mutates the shared `data/board_deck.json` module, which `/board/deck` returns |
+| Board state | Per-game, immutable updates, stored in PostgreSQL | Per-game copy | Mutates the shared `data/board_deck.json` module, which `/board/deck` returns |
 
 The `use_case` loop talks to the outside world through a controller object:
 `next_move() → {hand_card_index, row, column} | undefined` (undefined ends the game),
@@ -105,10 +105,26 @@ The `use_case` loop talks to the outside world through a controller object:
 
 ## State and lifetime
 
-Accounts and sessions are stored in PostgreSQL and survive restarts. Everything else is still in memory
-and lost on restart: rooms, table games, the legacy game (dealt once when
+Accounts, sessions, rooms, seats, table games and their turns are stored in PostgreSQL and survive restarts.
+Only the legacy developer game is still in memory and lost on restart (dealt once when
 `controller/game.js` is first required, at server start), and the board. There is one global HTTP game for
 the whole server, not one per room.
+
+## Rooms, games and history
+
+| Table | One row per | Notes |
+|---|---|---|
+| `rooms` | table | Code (`id`), creator, team layout, creation time |
+| `room_seats` | taken seat | Primary key (room, team, seat) and unique (room, user): one player per seat, one seat per player |
+| `games` | room's game | Full rules state as JSONB (hands and deck included, so only `view_for()` output is ever sent), started / updated / finished time, winning team |
+| `turns` | accepted move | Append-only: move number, game turn, player, team, kind, card, cell, and the log events the move produced |
+
+A move is one transaction in `controller/room_game.js`: read the game `FOR UPDATE`, apply the rules
+(`entity/sequence_game.js`), then `record_move()` saves the new state and appends the turn. A rejected move
+changes nothing, and moves on one table can't interleave. Joining and starting lock the room row the same way.
+
+The game state also carries its own `log`, which the GameView shows; `turns` is the queryable history of the same
+moves, keyed to user ids rather than display names.
 
 ## Sessions
 

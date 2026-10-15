@@ -36,12 +36,29 @@ Ends the session on the server and clears the cookie. Always `204`, with or with
 ### `GET /user/profile` (auth)
 `200 {handle, name}`, or `401 NOT_SIGNED_IN`. Clients can use it to ask "am I signed in?".
 
+### `GET /user/rooms` (auth)
+The tables you created or sat at, newest first (at most 50). `401 NOT_SIGNED_IN` without a session.
+
+```jsonc
+[{
+  "id": "731791746123232", "created_at": "…", "administrator": "jabir",
+  "team_count": 2, "players_per_team": 1, "seats_taken": 2,
+  "your_team": 0,                      // null when you only created the table
+  "status": "playing",                 // open (no game yet) | playing | finished
+  "started_at": "…", "finished_at": null, "winner_team": null,
+  "move_count": 12
+}, …]
+```
+
 ## Room
 
-### `POST /room/create`
-Body `{number_of_team, number_of_player_in_each_team}` (numbers or numeric strings, not validated).
-`200 {id}`. `id` is a numeric string such as `"731791746123232"`. `administrator` is taken from the session;
-it is `undefined` when not signed in (the request still succeeds).
+Rooms, seats, games and every move are stored in PostgreSQL, so tables and games in progress survive restarts.
+
+### `POST /room/create` (auth)
+Body `{number_of_team, number_of_player_in_each_team}` (numbers or numeric strings).
+`200 {id}`. `id` is a numeric string such as `"731791746123232"`; the signed-in user becomes `administrator`.
+Errors are JSON `{error, message}`: `401 NOT_SIGNED_IN`, or `400 UNSUPPORTED_TABLE` for a table size the rules
+can't deal for (2 or 3 teams; 2, 3, 4, 6, 8, 9, 10 or 12 players in total).
 
 ### `GET /room/:id`
 `200` with a Room, or `200` with an **empty body** when the id doesn't exist.
@@ -51,7 +68,7 @@ it is `undefined` when not signed in (the request still succeeds).
 {
   "administrator": "jabir",
   "id": "731791746123232",
-  "administrator": "jabir",
+  "created_at": "2026-10-15T05:48:22.696Z",
   "teams": [
     { "handle": "TEAM_1", "players": [ {"handle": "jabir", "name": "Jabir ibne kamal"}, null ] },
     { "handle": "TEAM_2", "players": [ null, null ] }
@@ -70,7 +87,8 @@ Body `{team_handle}`. Takes the first empty seat in that team. Always HTTP `200`
 - `{"message": "GAME_ALREADY_STARTED"}` once the table's game has started.
 - `{"message": "ROOM_NOT_FOUND"}` or `{"message": "TEAM_NOT_FOUND"}`.
 
-There are no endpoints to leave a room or list rooms.
+Joins to the same room are serialised, so a contested last seat goes to exactly one player.
+There is no endpoint to leave a room. To list your rooms, see [`GET /user/rooms`](#get-userrooms-auth).
 
 ## Table game
 
@@ -83,6 +101,9 @@ A full game for a room, run by the server (`entity/sequence_game.js`). Errors ar
 Deals a game once every seat is taken. Any seated player, or the table's creator, may start it. Seats alternate
 teams (T1, T2, [T3,] T1, …), and the first seat moves first. Returns a GameView and broadcasts `room_updated` and
 `game_updated`.
+
+Moves on one table are applied one at a time: of two simultaneous moves by the current player, the second
+gets `409 NOT_YOUR_TURN`. Every accepted move is recorded (see [`GET /room/:id/turns`](#get-roomidturns)).
 
 ### `GET /room/:id/game`
 The GameView for the session's user. Anyone may watch; only seated players see a hand (their own).
@@ -111,6 +132,24 @@ The GameView for the session's user. Anyone may watch; only seated players see a
 
 Each applies the move for the current player, draws a replacement card, and returns the new GameView. Every change
 broadcasts `game_updated`.
+
+### `GET /room/:id/turns`
+The table's moves so far, oldest first. Public, like the game view, and never includes hands or the deck.
+`404 ROOM_NOT_FOUND | GAME_NOT_FOUND`; `[]` when the game has started but nobody has moved.
+
+```jsonc
+[{
+  "move_number": 1,                    // 1, 2, 3… across the game
+  "turn": 1,                           // the game's turn counter; an exchange shares it with the next play
+  "player": {"handle": "jabir", "name": "Jabir ibne kamal"},
+  "team": 0,
+  "kind": "play",                      // play | exchange | pass
+  "card": "4-Spade",                   // null for a pass
+  "cell": {"row": 1, "column": 5},     // only for a play
+  "events": [{"kind": "place", …}],    // the log entries the move produced (also sequence and win)
+  "created_at": "2026-10-15T05:48:22.705Z"
+}, …]
+```
 
 ## Board
 
