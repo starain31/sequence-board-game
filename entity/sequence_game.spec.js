@@ -1,0 +1,125 @@
+const {create_game, apply_move, view_for, legal_targets, find_new_sequences, empty_chip_grid} = require('./sequence_game');
+const board_deck = require('../data/board_deck.json');
+
+function teams_of(team_count, players_per_team) {
+    return Array.from({length: team_count}, function (_, t) {
+        return {
+            handle: `TEAM_${t + 1}`,
+            players: Array.from({length: players_per_team}, function (_, p) {
+                return {handle: `t${t}p${p}`, name: `Player ${t}-${p}`};
+            }),
+        };
+    });
+}
+
+/** A game where the current player's first card is `card`. */
+function with_card(state, card) {
+    const hands = state.hands.map(function (h) {
+        return h.slice();
+    });
+    hands[state.current][0] = card;
+    return Object.assign({}, state, {hands});
+}
+
+describe('create_game', function () {
+    it('seats players alternating teams and deals by table size', function () {
+        const game = create_game({teams: teams_of(2, 2)});
+        expect(game.players.map(function (p) {
+            return [p.handle, p.team];
+        })).toEqual([['t0p0', 0], ['t1p0', 1], ['t0p1', 0], ['t1p1', 1]]);
+        expect(game.hands.every(function (h) {
+            return h.length === 6;
+        })).toBe(true);
+        expect(game.deck.length).toBe(104 - 24);
+    });
+
+    it('rejects tables the rules cannot deal for', function () {
+        expect(function () {
+            create_game({teams: teams_of(3, 5)});
+        }).toThrow(/can't be dealt/);
+    });
+});
+
+describe('apply_move', function () {
+    it('places a chip, draws a card and passes the turn', function () {
+        const game = with_card(create_game({teams: teams_of(2, 1)}), '6-Diamond');
+        const deck_before = game.deck.length;
+        const next = apply_move(game, 't0p0', {type: 'play', hand_index: 0, target: {row: 0, column: 1}});
+        expect(next.chips[0][1]).toBe(0);
+        expect(next.hands[0].length).toBe(7);
+        expect(next.deck.length).toBe(deck_before - 1);
+        expect(next.current).toBe(1);
+        expect(next.turn).toBe(2);
+        expect(game.chips[0][1]).toBeNull();
+    });
+
+    it('rejects a move out of turn', function () {
+        const game = create_game({teams: teams_of(2, 1)});
+        expect(function () {
+            apply_move(game, 't1p0', {type: 'pass'});
+        }).toThrow(/turn/);
+    });
+
+    it('rejects a card on the wrong cell', function () {
+        const game = with_card(create_game({teams: teams_of(2, 1)}), '6-Diamond');
+        expect(function () {
+            apply_move(game, 't0p0', {type: 'play', hand_index: 0, target: {row: 0, column: 2}});
+        }).toThrow(expect.objectContaining({code: 'CELL_MISMATCH'}));
+    });
+
+    it('lets a one-eyed jack remove an opponent chip', function () {
+        let game = create_game({teams: teams_of(2, 1)});
+        game.chips[4][4] = 1;
+        game = with_card(game, 'J-Spade');
+        expect(legal_targets(game, 0)).toEqual([{row: 4, column: 4}]);
+        const next = apply_move(game, 't0p0', {type: 'play', hand_index: 0, target: {row: 4, column: 4}});
+        expect(next.chips[4][4]).toBeNull();
+    });
+
+    it('detects a sequence and declares a winner with two', function () {
+        let game = create_game({teams: teams_of(2, 1)});
+        // Row 0 with its corner: (0,0) is a free corner, so (0,1)…(0,4) completes a sequence.
+        [1, 2, 3].forEach(function (c) {
+            game.chips[0][c] = 0;
+        });
+        // A second, already completed sequence for team 0.
+        game.sequences = [{team: 0, cells: [5, 6, 7, 8, 9].map(function (c) {
+            return {row: 9, column: c};
+        })}];
+        game = with_card(game, board_deck[0][4].name);
+        const next = apply_move(game, 't0p0', {type: 'play', hand_index: 0, target: {row: 0, column: 4}});
+        expect(next.sequences.length).toBe(2);
+        expect(next.winner).toBe(0);
+        expect(next.log.map(function (e) {
+            return e.kind;
+        })).toEqual(['place', 'sequence', 'win']);
+        expect(function () {
+            apply_move(next, 't1p0', {type: 'pass'});
+        }).toThrow(/over/);
+    });
+});
+
+describe('find_new_sequences', function () {
+    it('counts a 9-long line as two sequences', function () {
+        const chips = empty_chip_grid();
+        for (let c = 0; c < 9; c++) chips[2][c] = 0;
+        expect(find_new_sequences(chips, [], 0, {row: 2, column: 4}).length).toBe(2);
+    });
+
+    it('counts a 6-long line once', function () {
+        const chips = empty_chip_grid();
+        for (let c = 1; c < 7; c++) chips[2][c] = 0;
+        expect(find_new_sequences(chips, [], 0, {row: 2, column: 6}).length).toBe(1);
+    });
+});
+
+describe('view_for', function () {
+    it("shows only the viewer's own hand", function () {
+        const game = create_game({teams: teams_of(2, 1)});
+        const view = view_for(game, 't1p0');
+        expect(view.hand).toEqual(game.hands[1]);
+        expect(JSON.stringify(view)).not.toContain('"deck":');
+        expect(view.current_player).toBe('t0p0');
+        expect(view_for(game, 'stranger').hand).toEqual([]);
+    });
+});

@@ -5,10 +5,10 @@ Confirmed by running the server and calling it with curl. Highest impact first.
 ## Breaks the game
 
 1. ~~Every valid move fails~~ (fixed: the legacy game uses the player's team and draws a replacement card).
-2. **Rooms and games are not connected.** There is no way to start a game from a room. The HTTP game uses
-   4 hard-coded players and one global board shared by the whole server.
-3. **No sequence detection or win condition**, in either implementation.
-4. **The HTTP game has no turn order.** Any player can move at any time.
+2. ~~Rooms and games are not connected~~ (fixed: `POST /room/:id/start` and the table game endpoints, see
+   [api.md](api.md#table-game)). The legacy `/game/*` endpoints still use 4 hard-coded players and one global board.
+3. ~~No sequence detection or win condition~~ (fixed in the table game; the legacy game still has none).
+4. **The legacy HTTP game has no turn order.** Any player can move at any time. The table game enforces turns.
 
 ## Stability
 
@@ -32,8 +32,8 @@ Confirmed by running the server and calling it with curl. Highest impact first.
     player counts, so a room can be configured in a way `entity/` would reject.
 13. ~~The same user can occupy several seats~~ (fixed: `ALREADY_SEATED`; joining without a session is `NOT_SIGNED_IN`).
 14. The legacy game mutates the `require`d `data/board_deck.json` module, so the "static" board data *is*
-    the live state. (It also used to empty the shared `data/game_deck.json` array while shuffling; it now shuffles
-    a copy.)
+    the live state. (It also used to empty the shared `data/game_deck.json` array while shuffling, which left table
+    games with no cards; it now shuffles a copy.)
 15. In `entity/`, an unsupported total player count (for example 15) silently deals no cards.
 
 ## Tooling

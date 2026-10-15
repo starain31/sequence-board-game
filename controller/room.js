@@ -1,5 +1,6 @@
 const db_room = require('../database/rooms');
 const db_user = require('../database/users');
+const db_game = require('../database/games');
 const socket_server = require('../socket');
 
 function create(req, res) {
@@ -28,12 +29,14 @@ function join(req, res) {
             const {team_handle} = req.body;
             const {id} = req.params;
 
+            if (db_game.get({room_id: id}) !== undefined) {
+                throw 'GAME_ALREADY_STARTED';
+            }
             db_room.join({team_handle, id, player: {handle: player_handle, name: user.name}});
 
             res.send({message: 'success'});
 
-            socket_server.broadcast({event: 'room_updated', data: db_room.get({id})});
-
+            broadcast_room({id});
         })
         .catch(function (e) {
             if (typeof e !== 'string') console.error(e);
@@ -45,10 +48,21 @@ function generate_room_id() {
     return `${Math.floor(Math.random() * 100)}${Date.now()}`;
 }
 
-function room(req, res) {
-    const {id} = req.params;
+function room_payload({id}) {
     const room = db_room.get({id});
-    res.send(room);
+    if (room === undefined) {
+        return undefined;
+    }
+    return Object.assign({}, room, {game_started: db_game.get({room_id: id}) !== undefined});
 }
 
-module.exports = {create, join, room};
+function broadcast_room({id}) {
+    socket_server.broadcast({event: 'room_updated', data: room_payload({id})});
+}
+
+function room(req, res) {
+    const {id} = req.params;
+    res.send(room_payload({id}));
+}
+
+module.exports = {create, join, room, room_payload, broadcast_room};

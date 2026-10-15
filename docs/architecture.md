@@ -12,7 +12,7 @@ install here resolved to 2.3.0), Jest for tests. CommonJS modules, no build step
 ```bash
 npm install
 npm start            # node ./bin/www, listens on PORT or 3000
-npm test             # jest: entity/*.spec.js (7 tests, all pass)
+npm test             # jest: entity/*.spec.js
 npm run debug        # nodemon
 npm run debug_1      # terminal game, moves read from console_controller/input.txt
 npm run debug_2      # terminal game, moves typed interactively (inquirer)
@@ -29,13 +29,16 @@ routes/               Thin routers: user, room, game, board
 controller/
   user.js             signin (authenticate + service), profile
   room.js             create / get / join room, broadcasts room_updated
+  room_game.js        start a table's game, view it, play / exchange / pass; broadcasts game_updated
   board.js            serves data/board_deck.json (module singleton, also used as live board state)
   game.js             LEGACY global game: 4 hard-coded players, deal on module load, play endpoint
   index.js            Dead code (unattached socket.io instance, unused inquirer controller)
 database/
   users.js            Hard-coded users: jabir/1, sakib/123 → {name, password}
-  rooms.js            In-memory rooms keyed by id
-entity/               CLEAN domain layer (tested), not wired to HTTP
+  rooms.js            In-memory rooms keyed by id; seats hold {handle, name}
+  games.js            In-memory table games keyed by room id (kept apart so room payloads never carry hands)
+entity/               Domain layer (tested)
+  sequence_game.js    Full rules for table games: dealing, turns, jacks, dead cards, sequences, win. Wired to HTTP
   board.js            New_board(): get_deck, play, pretty_deck; move validation
   players.js          create_players({teams}): seating order, hands, team/player count validation
   game.js             initialize_game({teams}): board + players + shuffled deck + deal
@@ -48,18 +51,17 @@ data/
 public/               Old Vue 2 prototype UI (index.html, views/, javascripts/) + card SVGs
 ```
 
-## Two game implementations
+## Three game implementations
 
-| | `entity/` + `use_case/` | `controller/game.js` |
-|---|---|---|
-| Used by | Terminal runners and tests | HTTP API (`/game/*`) |
-| Players | From the `teams` argument | Hard-coded: jabir, sakib (`team1`), habiba, humaira (`team2`) |
-| Dealing | Official counts by player count | 5 cards each |
-| Turn order | Enforced, teams alternate | None |
-| Draw after play | Yes | No |
-| Corners | Rejected as targets | Not checked |
-| Board state | Per-game copy | Mutates the shared `data/board_deck.json` module, which `/board/deck` returns |
-| Works? | Yes | No, `current_team` is never defined, so valid moves throw |
+| | `entity/sequence_game.js` | `entity/` + `use_case/` | `controller/game.js` |
+|---|---|---|---|
+| Used by | HTTP table games (`/room/:id/start`, `/room/:id/game/*`) | Terminal runners and tests | Legacy HTTP API (`/game/*`) |
+| Players | A room's seats | From the `teams` argument | Hard-coded: jabir, sakib (`team1`), habiba, humaira (`team2`) |
+| Dealing | Official counts by player count | Official counts by player count | 5 cards each |
+| Turn order | Enforced | Enforced, teams alternate | None |
+| Draw after play | Yes, reshuffles the discard pile | Yes | Yes |
+| Sequences / win / dead cards | Yes | No | No |
+| Board state | Per-game, immutable updates | Per-game copy | Mutates the shared `data/board_deck.json` module, which `/board/deck` returns |
 
 The `use_case` loop talks to the outside world through a controller object:
 `next_move() → {hand_card_index, row, column} | undefined` (undefined ends the game),
