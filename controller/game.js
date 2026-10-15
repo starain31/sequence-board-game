@@ -31,7 +31,7 @@ function shuffled_deck() {
      *
      * @type {Array}
      */
-    const temp_deck = require('../data/game_deck.json');
+    const temp_deck = require('../data/game_deck.json').slice();
     const final_deck = [];
     while(temp_deck.length !== 0) {
         const random_card = Math.floor(Math.random() * temp_deck.length);
