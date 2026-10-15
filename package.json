@@ -6,6 +6,7 @@
     "start": "node ./bin/www",
     "test": "jest",
     "debug": "nodemon ./bin/www",
+    "db:migrate": "node database/migrate.js",
     "debug_1": "node console_controller/index.js",
     "debug_2": "node console_controller_2/index.js"
   },
@@ -17,8 +18,9 @@
     "http-errors": "~1.6.2",
     "inquirer": "^7.1.0",
     "morgan": "~1.9.0",
-    "vue": "^2.6.11",
-    "socket.io": "latest"
+    "pg": "8.23.1",
+    "socket.io": "latest",
+    "vue": "^2.6.11"
   },
   "devDependencies": {
     "colors": "^1.4.0"
