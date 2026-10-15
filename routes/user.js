@@ -1,11 +1,11 @@
-const {authenticate, service, get_profile_info} = require("../controller/user");
+const user = require("../controller/user");
 const router =  require('express').Router();
 
-router.post('/signin', authenticate, service);
+router.post('/signin', user.signin);
 router.post('/signup', function (req, res) {
     res.status(200).send();
 });
 
-router.get('/profile', get_profile_info);
+router.get('/profile', user.profile);
 
 module.exports = router;
