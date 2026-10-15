@@ -19,6 +19,9 @@ function create(req, res) {
 
 function join(req, res) {
     const player_handle = req.session.handle;
+    if (player_handle === undefined) {
+        return res.send({message: 'NOT_SIGNED_IN'});
+    }
 
     db_user.get_user({handle: player_handle})
         .then(function (user) {
