@@ -193,6 +193,35 @@ describe_with_database('rooms and table games', function () {
             expect([late.status, late.body.error]).toEqual([409, 'GAME_ALREADY_STARTED']);
         });
 
+        test('the host can shuffle seated players across the teams', async function () {
+            const id = await open_room('alice', 2, 2);
+            await join('alice', id, 'TEAM_1');
+            await join('bob', id, 'TEAM_1');
+            await join('carol', id, 'TEAM_2');
+
+            const shuffled = await agents.alice.post(`/room/${id}/shuffle`);
+            expect(shuffled.status).toBe(200);
+            const players = shuffled.body.teams.flatMap(function (t) {
+                return t.players;
+            }).filter(Boolean).map(function (p) {
+                return p.handle;
+            });
+            expect(players.sort()).toEqual(['alice', 'bob', 'carol']);
+            // Three players on two teams of two: each team gets at least one.
+            expect(shuffled.body.teams.every(function (t) {
+                return t.players[0] !== null;
+            })).toBe(true);
+            expect(JSON.stringify(shuffled.body)).not.toMatch(/user_id/);
+
+            const guest = await agents.bob.post(`/room/${id}/shuffle`);
+            expect([guest.status, guest.body.error]).toEqual([403, 'NOT_HOST']);
+            await join('dave', id, shuffled.body.teams.find(function (t) {
+                return t.players.includes(null);
+            }).handle);
+            await agents.alice.post(`/room/${id}/start`).expect(200);
+            expect((await agents.alice.post(`/room/${id}/shuffle`)).body.error).toBe('GAME_ALREADY_STARTED');
+        });
+
         test('gives a contested last seat to exactly one player', async function () {
             const id = await open_room('alice', 2, 1);
             await join('alice', id, 'TEAM_1');

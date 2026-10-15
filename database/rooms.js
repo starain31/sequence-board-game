@@ -94,7 +94,7 @@ async function get({id, client = pool, lock = false}) {
     }
     read_settings(room);
     const seats = await client.query(
-        `SELECT room_seats.team, room_seats.seat, users.handle, users.name
+        `SELECT room_seats.team, room_seats.seat, room_seats.user_id, users.handle, users.name
          FROM room_seats JOIN users ON users.id = room_seats.user_id
          WHERE room_seats.room_id = $1`,
         [room.id]
@@ -102,8 +102,11 @@ async function get({id, client = pool, lock = false}) {
     room.teams = Array.from({length: room.team_count}, function (value, index) {
         return {handle: team_handle(index), players: Array(room.players_per_team).fill(null)};
     });
-    seats.rows.forEach(function ({team, seat, handle, name}) {
+    // user_id stays on the room (for reseating) and out of the payload.
+    room.seated_user_ids = {};
+    seats.rows.forEach(function ({team, seat, user_id, handle, name}) {
         room.teams[team].players[seat] = {handle, name};
+        room.seated_user_ids[handle] = user_id;
     });
     return room;
 }
@@ -184,6 +187,15 @@ async function leave({id, user, client}) {
     }
 }
 
+// Replaces every seat with `seats` ([{team, seat, user_id}]). Call inside the transaction that locked the
+// room and checked the game hasn't started.
+async function reseat({id, seats, client}) {
+    await client.query('DELETE FROM room_seats WHERE room_id = $1', [String(id)]);
+    for (const {team, seat, user_id} of seats) {
+        await client.query('INSERT INTO room_seats (room_id, team, seat, user_id) VALUES ($1, $2, $3, $4)', [String(id), team, seat, user_id]);
+    }
+}
+
 // The rooms a user created or sat at, newest first (ties by code, so pages never overlap).
 async function list_for_user({user_id, limit = 50, offset = 0, client = pool}) {
     const {rows} = await client.query(
@@ -209,4 +221,4 @@ async function current_for_user({user_id, client = pool}) {
     return rows[0] === undefined ? undefined : read_settings(rows[0]);
 }
 
-module.exports = {create, update, get, is_seated, is_full, join, leave, list_for_user, count_for_user, current_for_user};
+module.exports = {create, update, get, is_seated, is_full, join, leave, reseat, list_for_user, count_for_user, current_for_user};

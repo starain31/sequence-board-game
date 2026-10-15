@@ -99,6 +99,27 @@ function is_slug(text) {
     return typeof text === 'string' && SLUG_PATTERN.test(text);
 }
 
+/**
+ * Deals seated players out to seats at random, keeping teams as even as possible: seats are filled seat 0 of
+ * every team, then seat 1 of every team, and so on. Returns [{team, seat, player}].
+ */
+function shuffle_seats(players, team_count, players_per_team, random = Math.random) {
+    const shuffled = players.slice();
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        const temp = shuffled[i];
+        shuffled[i] = shuffled[j];
+        shuffled[j] = temp;
+    }
+    const seats = [];
+    for (let seat = 0; seat < players_per_team; seat++) {
+        for (let team = 0; team < team_count; team++) seats.push({team, seat});
+    }
+    return shuffled.slice(0, seats.length).map(function (player, i) {
+        return Object.assign({player}, seats[i]);
+    });
+}
+
 function parse_mode(value) {
     if (GAME_MODES.includes(value)) return value;
     throw new RoomError('INVALID_SETTINGS', `The setting "mode" must be one of: ${GAME_MODES.join(', ')}.`);
@@ -151,4 +172,5 @@ module.exports = {
     generate_slug,
     is_slug,
     parse_settings,
+    shuffle_seats,
 };

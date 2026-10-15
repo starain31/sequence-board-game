@@ -3,7 +3,7 @@ const db_user = require('../database/users');
 const db_game = require('../database/games');
 const {transaction} = require('../database/pool');
 const {is_supported_table} = require('../entity/sequence_game');
-const {RoomError, normalize_name, generate_slug, parse_settings} = require('../entity/room');
+const {RoomError, normalize_name, generate_slug, parse_settings, shuffle_seats} = require('../entity/room');
 const socket_server = require('../socket');
 
 /**
@@ -117,6 +117,34 @@ async function leave(req, res) {
     await broadcast_room({id});
 }
 
+/** POST /room/:id/shuffle: the host deals the seated players out to the teams at random, before the game starts. */
+async function shuffle(req, res) {
+    const handle = req.session.handle;
+    if (handle === undefined) {
+        throw new RoomError('NOT_SIGNED_IN', 'Sign in to change seats.');
+    }
+    const {id} = req.params;
+    await transaction(async function (client) {
+        const room = await db_room.get({id, client, lock: true});
+        if (room === undefined) {
+            throw new RoomError('ROOM_NOT_FOUND', 'There is no table with that code.');
+        }
+        if (room.administrator !== handle) {
+            throw new RoomError('NOT_HOST', `Only ${room.administrator_name}, who opened this table, can shuffle the teams.`);
+        }
+        if (await db_game.get({room_id: id, client}) !== undefined) {
+            throw new RoomError('GAME_ALREADY_STARTED', 'The game has started, so the seats are fixed.');
+        }
+        const seated = Object.values(room.seated_user_ids);
+        const seats = shuffle_seats(seated, room.team_count, room.players_per_team).map(function ({team, seat, player}) {
+            return {team, seat, user_id: player};
+        });
+        await db_room.reseat({id, seats, client});
+    });
+    res.send(await room_payload({id}));
+    await broadcast_room({id});
+}
+
 async function room_payload({id}) {
     const room = await db_room.get({id});
     if (room === undefined) {
@@ -170,6 +198,7 @@ module.exports = {
     room: handler(room),
     update_settings: handler(update_settings),
     leave: handler(leave),
+    shuffle: handler(shuffle),
     room_payload,
     broadcast_room,
 };

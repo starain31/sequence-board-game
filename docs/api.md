@@ -127,7 +127,12 @@ Joins to the same room are serialised, so a contested last seat goes to exactly 
 ### `POST /room/:id/leave` (auth)
 Stand up from your seat before the game starts, to take another seat or let the host reshuffle the teams.
 `200` with the Room, and `room_updated` is broadcast. JSON errors: `401 NOT_SIGNED_IN`, `404 ROOM_NOT_FOUND`,
-`409 NOT_SEATED` (you have no seat here), `409 GAME_ALREADY_STARTED` (seats are fixed once the game starts). To list your rooms, see [`GET /user/rooms`](#get-userrooms-auth).
+`409 NOT_SEATED` (you have no seat here), `409 GAME_ALREADY_STARTED` (seats are fixed once the game starts).
+
+### `POST /room/:id/shuffle` (auth, host)
+Deals the seated players out to the seats at random before the game starts, keeping teams as even as possible
+(seat 1 of every team first, then seat 2, …). `200` with the Room, and `room_updated` is broadcast. `401`, `403
+NOT_HOST`, `404 ROOM_NOT_FOUND`, `409 GAME_ALREADY_STARTED`. To list your rooms, see [`GET /user/rooms`](#get-userrooms-auth).
 
 ## Table game
 
