@@ -1,12 +1,17 @@
 // Running games, keyed by room id. Kept apart from rooms so a room payload never carries hands.
+// Same interface as a database table (an optional `client` and `lock` are accepted and ignored).
 const games = {};
 
-function get({room_id}) {
+async function get({room_id}) {
     return games[room_id];
 }
 
-function save({room_id, game}) {
-    games[room_id] = game;
+async function create({room_id, state}) {
+    games[room_id] = state;
 }
 
-module.exports = {get, save};
+async function record_move({room_id, next}) {
+    games[room_id] = next;
+}
+
+module.exports = {get, create, record_move};
