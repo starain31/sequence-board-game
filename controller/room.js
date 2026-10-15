@@ -88,6 +88,35 @@ async function join(req, res) {
     await broadcast_room({id});
 }
 
+/**
+ * POST /room/:id/leave: stand up from your seat before the game starts, so you can take another (or let the
+ * host reshuffle the teams). 200 with the room; JSON errors.
+ */
+async function leave(req, res) {
+    const user = await db_user.get_user({handle: req.session.handle});
+    if (user === undefined) {
+        throw new RoomError('NOT_SIGNED_IN', 'Sign in to change seats.');
+    }
+    const {id} = req.params;
+    await transaction(async function (client) {
+        const room = await db_room.get({id, client, lock: true});
+        if (room === undefined) {
+            throw new RoomError('ROOM_NOT_FOUND', 'There is no table with that code.');
+        }
+        if (await db_game.get({room_id: id, client}) !== undefined) {
+            throw new RoomError('GAME_ALREADY_STARTED', 'The game has started, so the seats are fixed.');
+        }
+        try {
+            await db_room.leave({id, user, client});
+        } catch (e) {
+            if (e === 'NOT_SEATED') throw new RoomError('NOT_SEATED', "You don't have a seat at this table.");
+            throw e;
+        }
+    });
+    res.send(await room_payload({id}));
+    await broadcast_room({id});
+}
+
 async function room_payload({id}) {
     const room = await db_room.get({id});
     if (room === undefined) {
@@ -118,6 +147,7 @@ const STATUS_BY_ERROR = {
     NOT_HOST: 403,
     ROOM_NOT_FOUND: 404,
     GAME_ALREADY_STARTED: 409,
+    NOT_SEATED: 409,
 };
 
 // Express 4 doesn't catch rejected promises; answer instead of leaving the request hanging.
@@ -139,6 +169,7 @@ module.exports = {
     join: handler(join),
     room: handler(room),
     update_settings: handler(update_settings),
+    leave: handler(leave),
     room_payload,
     broadcast_room,
 };

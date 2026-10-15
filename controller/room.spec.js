@@ -168,6 +168,31 @@ describe_with_database('rooms and table games', function () {
             expect(room.teams[0].players).toEqual([{handle: 'alice', name: 'Player alice'}]);
         });
 
+        test('a player can stand up and take another seat until the game starts', async function () {
+            const id = await open_room('alice', 2, 1);
+            await join('alice', id, 'TEAM_1');
+            await join('bob', id, 'TEAM_2');
+
+            const left = await agents.alice.post(`/room/${id}/leave`);
+            expect(left.status).toBe(200);
+            expect(left.body.teams.map(function (t) {
+                return t.players;
+            })).toEqual([[null], [{handle: 'bob', name: 'Player bob'}]]);
+            // The freed seat can be taken by anyone, including the player who left.
+            expect(await join('carol', id, 'TEAM_1')).toBe('success');
+            await agents.carol.post(`/room/${id}/leave`).expect(200);
+            expect(await join('alice', id, 'TEAM_1')).toBe('success');
+
+            const twice = await agents.dave.post(`/room/${id}/leave`);
+            expect([twice.status, twice.body.error]).toEqual([409, 'NOT_SEATED']);
+            expect((await request(app).post(`/room/${id}/leave`)).status).toBe(401);
+            expect((await agents.alice.post('/room/nope/leave')).status).toBe(404);
+
+            await agents.alice.post(`/room/${id}/start`).expect(200);
+            const late = await agents.bob.post(`/room/${id}/leave`);
+            expect([late.status, late.body.error]).toEqual([409, 'GAME_ALREADY_STARTED']);
+        });
+
         test('gives a contested last seat to exactly one player', async function () {
             const id = await open_room('alice', 2, 1);
             await join('alice', id, 'TEAM_1');

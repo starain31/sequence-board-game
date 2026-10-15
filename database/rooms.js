@@ -175,6 +175,15 @@ const USER_ROOMS_SELECT = `
         LEFT JOIN room_seats AS my_seat ON my_seat.room_id = rooms.id AND my_seat.user_id = $1
         LEFT JOIN games ON games.room_id = rooms.id`;
 
+// Frees the user's seat. Call inside the transaction that locked the room and checked the game hasn't
+// started. Throws NOT_SEATED when the user has no seat here.
+async function leave({id, user, client}) {
+    const {rowCount} = await client.query('DELETE FROM room_seats WHERE room_id = $1 AND user_id = $2', [String(id), user.id]);
+    if (rowCount === 0) {
+        throw 'NOT_SEATED';
+    }
+}
+
 // The rooms a user created or sat at, newest first (ties by code, so pages never overlap).
 async function list_for_user({user_id, limit = 50, offset = 0, client = pool}) {
     const {rows} = await client.query(
@@ -200,4 +209,4 @@ async function current_for_user({user_id, client = pool}) {
     return rows[0] === undefined ? undefined : read_settings(rows[0]);
 }
 
-module.exports = {create, update, get, is_seated, is_full, join, list_for_user, count_for_user, current_for_user};
+module.exports = {create, update, get, is_seated, is_full, join, leave, list_for_user, count_for_user, current_for_user};

@@ -123,7 +123,11 @@ Body `{team_handle}`. Takes the first empty seat in that team. Always HTTP `200`
 - `{"message": "ROOM_NOT_FOUND"}` or `{"message": "TEAM_NOT_FOUND"}`.
 
 Joins to the same room are serialised, so a contested last seat goes to exactly one player.
-There is no endpoint to leave a room. To list your rooms, see [`GET /user/rooms`](#get-userrooms-auth).
+
+### `POST /room/:id/leave` (auth)
+Stand up from your seat before the game starts, to take another seat or let the host reshuffle the teams.
+`200` with the Room, and `room_updated` is broadcast. JSON errors: `401 NOT_SIGNED_IN`, `404 ROOM_NOT_FOUND`,
+`409 NOT_SEATED` (you have no seat here), `409 GAME_ALREADY_STARTED` (seats are fixed once the game starts). To list your rooms, see [`GET /user/rooms`](#get-userrooms-auth).
 
 ## Table game
 
