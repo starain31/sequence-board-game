@@ -25,7 +25,8 @@ function join({team_handle, id, player}) {
     const empty_slot = team.players.indexOf(undefined);
 
     if(empty_slot !== -1) {
-        team.players[empty_slot] = player;
+        // Only what other players need to see; never the user's password.
+        team.players[empty_slot] = {handle: player.handle, name: player.name};
         return;
     }
     console.log({empty_slot});
