@@ -26,8 +26,8 @@ dead cards, sequences, winning). An older global test game (`controller/game.js`
 |---|---|
 | Sign up / sign in / sign out | Works; accounts and sessions in PostgreSQL, scrypt hashes, rate limited |
 | Create/join room, live room updates | Works; named tables with slug codes and host-set options |
-| Room options | Move history, legal-move highlights, dead-card auto-draw |
-| Start a game from a room, play it | Works (`/room/:id/start`, `/room/:id/game/*`) |
+| Room options | Standard or training mode (hints), move history, legal-move highlights, dead-card auto-draw |
+| Start a game from a room, play it | Works (`/room/:id/start` by the host, `/room/:id/game/*`) |
 | Turn order, dealing, drawing, sequences, winning, dead cards | Works in table games (`entity/sequence_game.js`) |
 | Persistence | Accounts, sessions, rooms, seats, settings, games and turn history (only the legacy dev game is in memory) |
 | CORS | Not configured |
