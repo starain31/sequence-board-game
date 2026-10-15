@@ -1,11 +1,12 @@
 const db_user = require('../database/users');
-const {UserError, normalize_handle, hash_password, verify_password} = require('../entity/user');
+const {UserError, normalize_handle, validate_signup, hash_password, verify_password} = require('../entity/user');
 
 // Account endpoints. Errors are JSON: {error: CODE, message}, like the table game endpoints.
 
 const STATUS_BY_ERROR = {
     INVALID_CREDENTIALS: 401,
     NOT_SIGNED_IN: 401,
+    HANDLE_TAKEN: 409,
 };
 
 function send_error(res, e) {
@@ -40,6 +41,19 @@ function start_session(req, user) {
     });
 }
 
+async function signup(req, res) {
+    const {handle, name, password} = validate_signup(req.body);
+    let user;
+    try {
+        user = await db_user.create_user({handle, name, password_hash: await hash_password(password)});
+    } catch (e) {
+        if (e === 'HANDLE_TAKEN') throw new UserError('HANDLE_TAKEN', 'That handle is taken. Pick another one.');
+        throw e;
+    }
+    await start_session(req, user);
+    res.status(201).send(public_profile(user));
+}
+
 // Checked when the handle doesn't exist, so an unknown handle takes as long as a wrong password and
 // response times don't reveal which handles are registered.
 const unknown_user_hash = hash_password('no account has this password');
@@ -56,6 +70,18 @@ async function signin(req, res) {
     res.send(public_profile(user));
 }
 
+// Works with or without a session, so a client can always sign out cleanly.
+async function signout(req, res) {
+    await new Promise(function (resolve, reject) {
+        req.session.destroy(function (error) {
+            if (error) return reject(error);
+            resolve();
+        });
+    });
+    res.clearCookie('connect.sid');
+    res.status(204).send();
+}
+
 async function profile(req, res) {
     const user = await db_user.get_user({handle: req.session.handle});
     if (user === undefined) {
@@ -65,6 +91,8 @@ async function profile(req, res) {
 }
 
 module.exports = {
+    signup: handler(signup),
     signin: handler(signin),
+    signout: handler(signout),
     profile: handler(profile),
 };
