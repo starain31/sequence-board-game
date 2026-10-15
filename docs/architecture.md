@@ -58,7 +58,7 @@ socket.js             Single Socket.IO server + broadcast({event, data}) to ever
 routes/               Thin routers: user, room, game, board
 controller/
   user.js             signup, signin, signout, profile (JSON errors)
-  room.js             create / get / join room, broadcasts room_updated
+  room.js             create / get / join room, change its settings (host only), broadcasts room_updated
   room_game.js        start a table's game, view it, play / exchange / pass; broadcasts game_updated
   board.js            serves data/board_deck.json (module singleton, also used as live board state)
   game.js             LEGACY global game: 4 hard-coded players, deal on module load, play endpoint
@@ -66,7 +66,8 @@ controller/
 database/
   pool.js             PostgreSQL connection pool (DATABASE_URL) and ping() for /health
   migrate.js          SQL migration runner (also `npm run db:migrate`), tested in migrate.spec.js
-  migrations/         Numbered .sql files: 0001 users, 0002 session, 0003 rooms + room_seats, 0004 games + turns
+  migrations/         Numbered .sql files: 0001 users, 0002 session, 0003 rooms + room_seats, 0004 games + turns,
+                      0005 room names, slug codes and settings
   users.js            Accounts in the users table; only find_credentials() reads password_hash
   seed.js             Development accounts jabir/1, sakib/123 (`npm run db:seed`)
   test_database.js    Gives a spec its own migrated schema (needs DATABASE_URL)
@@ -74,6 +75,7 @@ database/
   games.js            Table game state (JSONB) and the turns history; kept apart so room payloads never carry hands
 entity/               Domain layer (tested)
   user.js             Sign-up rules, scrypt password hashing
+  room.js             Room names, slug codes and settings (defaults and parsing)
   sequence_game.js    Full rules for table games: dealing, turns, jacks, dead cards, sequences, win. Wired to HTTP
   board.js            New_board(): get_deck, play, pretty_deck; move validation
   players.js          create_players({teams}): seating order, hands, team/player count validation
@@ -114,7 +116,7 @@ the whole server, not one per room.
 
 | Table | One row per | Notes |
 |---|---|---|
-| `rooms` | table | Code (`id`), creator, team layout, creation time |
+| `rooms` | table | Code (`id`, a slug of the name such as `friday-night-k3m9`; older rooms have numeric codes), name, creator, team layout, settings (`history_enabled`, `highlights_enabled`, `auto_draw_dead`), creation time |
 | `room_seats` | taken seat | Primary key (room, team, seat) and unique (room, user): one player per seat, one seat per player |
 | `games` | room's game | Full rules state as JSONB (hands and deck included, so only `view_for()` output is ever sent), started / updated / finished time, winning team |
 | `turns` | accepted move | Append-only: move number, game turn, player, team, kind, card, cell, and the log events the move produced |
@@ -122,6 +124,14 @@ the whole server, not one per room.
 A move is one transaction in `controller/room_game.js`: read the game `FOR UPDATE`, apply the rules
 (`entity/sequence_game.js`), then `record_move()` saves the new state and appends the turn. A rejected move
 changes nothing, and moves on one table can't interleave. Joining and starting lock the room row the same way.
+
+Settings can change (by the room's creator) until the game starts, then they are fixed. Rules that change play
+(`auto_draw_dead`) are also copied into the game state's `rules` when it is dealt, so a resumed game always plays by
+the rules it started with. Display settings (`history`, `highlights`) are read from the room for every GameView.
+With history off, `turns` is still written (the "Your tables" move count uses it) but never served.
+
+Everything a client needs to resume is in these tables: who sat where, the settings, and the full game state.
+After a restart, `GET /user/rooms` lists a player's tables and `GET /room/:id/game` returns the game as it was.
 
 The game state also carries its own `log`, which the GameView shows; `turns` is the queryable history of the same
 moves, keyed to user ids rather than display names.

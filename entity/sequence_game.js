@@ -93,8 +93,9 @@ function empty_chip_grid() {
 /**
  * @param {Array<{handle: string, players: Array<{handle: string, name: string}>}>} teams
  *        Full teams, in team order. Seats alternate teams: T1, T2, [T3,] T1, T2, …
+ * @param {{auto_draw_dead?: boolean}} rules  Optional rules, kept in the state for the whole game.
  */
-function create_game({teams, random = Math.random}) {
+function create_game({teams, rules = {}, random = Math.random}) {
     const team_count = teams.length;
     const players_per_team = teams.length > 0 ? teams[0].players.length : 0;
     const evenly_divided = teams.every(function (team) {
@@ -119,8 +120,9 @@ function create_game({teams, random = Math.random}) {
         return deck.splice(0, hand_size);
     });
 
-    return {
+    return start_turn({
         team_count,
+        rules: {auto_draw_dead: rules.auto_draw_dead === true},
         players,
         hands,
         chips: empty_chip_grid(),
@@ -132,7 +134,7 @@ function create_game({teams, random = Math.random}) {
         sequences: [],
         winner: null,
         log: [],
-    };
+    }, random);
 }
 
 function current_player(state) {
@@ -234,7 +236,7 @@ function apply_move(state, handle, move, random = Math.random) {
             const {name, team} = current_player(state);
             return end_turn(Object.assign({}, state, {
                 log: state.log.concat({kind: 'pass', turn: state.turn, player: name, team}),
-            }));
+            }), random);
         }
         default:
             throw new RuleError('UNKNOWN_MOVE', 'Unknown move.');
@@ -288,7 +290,7 @@ function play(state, hand_index, target, random) {
     }
 
     const drawn = replace_card(Object.assign({}, state, {chips, sequences, log}), hand_index, random);
-    return winner !== null ? Object.assign(drawn, {winner}) : end_turn(drawn);
+    return winner !== null ? Object.assign(drawn, {winner}) : end_turn(drawn, random);
 }
 
 function exchange(state, hand_index, random) {
@@ -324,11 +326,31 @@ function replace_card(state, hand_index, random) {
     return Object.assign({}, state, {hands, deck, discard});
 }
 
-function end_turn(state) {
-    return Object.assign({}, state, {
+function end_turn(state, random) {
+    return start_turn(Object.assign({}, state, {
         current: (state.current + 1) % state.players.length,
         turn: state.turn + 1,
         exchanged_this_turn: false,
+    }), random);
+}
+
+/**
+ * With the auto_draw_dead rule, a dead card in the new current player's hand is exchanged for them. It is
+ * their one exchange for the turn, as if they had made it, and is logged as an exchange with `auto: true`.
+ * Games stored before rules existed have no `rules` and play without it.
+ */
+function start_turn(state, random) {
+    if (!state.rules || !state.rules.auto_draw_dead || state.winner !== null || state.exchanged_this_turn) return state;
+    const hand_index = state.hands[state.current].findIndex(function (card) {
+        return is_dead_card(state, card);
+    });
+    if (hand_index === -1) return state;
+    const card = state.hands[state.current][hand_index];
+    const player = current_player(state);
+    const next = replace_card(state, hand_index, random);
+    return Object.assign(next, {
+        exchanged_this_turn: true,
+        log: next.log.concat({kind: 'exchange', turn: state.turn, player: player.name, team: player.team, card, auto: true}),
     });
 }
 
@@ -391,8 +413,12 @@ function find_new_sequences(chips, existing, team, placed) {
     return found;
 }
 
-/** What one player may see: everything except other players' hands and the deck order. */
-function view_for(state, handle) {
+/**
+ * What one player may see: everything except other players' hands and the deck order.
+ * With `settings.history` false the log keeps only the latest move (this turn and the one before), so
+ * players see what just happened but can't read back through the game.
+ */
+function view_for(state, handle, settings = {}) {
     const seat = state.players.findIndex(function (p) {
         return p.handle === handle;
     });
@@ -417,7 +443,10 @@ function view_for(state, handle) {
         deck_count: state.deck.length,
         sequences: state.sequences,
         winner: state.winner,
-        log: state.log,
+        log: settings.history === false ? state.log.filter(function (entry) {
+            return entry.turn >= state.turn - 1;
+        }) : state.log,
+        settings,
     };
 }
 

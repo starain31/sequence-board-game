@@ -123,3 +123,72 @@ describe('view_for', function () {
         expect(view_for(game, 'stranger').hand).toEqual([]);
     });
 });
+
+describe('room rules', function () {
+    function cells_of(card) {
+        const cells = [];
+        board_deck.forEach(function (row, r) {
+            row.forEach(function (cell, c) {
+                if (cell.name === card) cells.push({row: r, column: c});
+            });
+        });
+        return cells;
+    }
+
+    // Both 6-Diamond cells covered, a 6-Diamond in the second player's hand, and a wild jack for the first.
+    function with_dead_card_for_next_player(rules) {
+        const game = create_game({teams: teams_of(2, 1), rules});
+        const chips = game.chips.map(function (row) {
+            return row.slice();
+        });
+        cells_of('6-Diamond').forEach(function (p) {
+            chips[p.row][p.column] = 0;
+        });
+        const hands = game.hands.map(function (h) {
+            return h.filter(function (card) {
+                return card !== '6-Diamond';
+            }).slice(0, 6);
+        });
+        hands[0] = ['J-Club'].concat(hands[0]);
+        hands[1] = ['6-Diamond'].concat(hands[1]);
+        return Object.assign({}, game, {chips, hands, log: []});
+    }
+
+    it('exchanges a dead card when its owner\'s turn starts, with auto_draw_dead', function () {
+        const game = with_dead_card_for_next_player({auto_draw_dead: true});
+        expect(game.rules).toEqual({auto_draw_dead: true});
+        const next = apply_move(game, 't0p0', {type: 'play', hand_index: 0, target: {row: 5, column: 5}});
+        expect(next.current).toBe(1);
+        expect(next.hands[1]).not.toContain('6-Diamond');
+        expect(next.hands[1]).toHaveLength(7);
+        expect(next.discard).toContain('6-Diamond');
+        expect(next.exchanged_this_turn).toBe(true);
+        expect(next.log.at(-1)).toEqual({kind: 'exchange', turn: 2, player: 'Player 1-0', team: 1, card: '6-Diamond', auto: true});
+    });
+
+    it('leaves dead cards alone without the rule, and for games stored before rules existed', function () {
+        const game = with_dead_card_for_next_player({});
+        expect(game.rules).toEqual({auto_draw_dead: false});
+        const legacy = Object.assign({}, game);
+        delete legacy.rules;
+        for (const state of [game, legacy]) {
+            const next = apply_move(state, 't0p0', {type: 'play', hand_index: 0, target: {row: 5, column: 5}});
+            expect(next.hands[1][0]).toBe('6-Diamond');
+            expect(next.exchanged_this_turn).toBe(false);
+        }
+    });
+
+    it('view_for keeps only the latest move when history is off, and passes the settings on', function () {
+        let game = create_game({teams: teams_of(2, 1)});
+        for (const handle of ['t0p0', 't1p0', 't0p0']) {
+            game = apply_move(with_card(game, 'J-Club'), handle, {type: 'play', hand_index: 0, target: {row: game.turn, column: 5}});
+        }
+        expect(view_for(game, 't0p0').log).toHaveLength(3);
+        const settings = {history: false, highlights: true, auto_draw_dead: false};
+        const view = view_for(game, 't0p0', settings);
+        expect(view.log.map(function (entry) {
+            return entry.turn;
+        })).toEqual([3]);
+        expect(view.settings).toEqual(settings);
+    });
+});

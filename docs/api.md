@@ -41,8 +41,9 @@ The tables you created or sat at, newest first (at most 50). `401 NOT_SIGNED_IN`
 
 ```jsonc
 [{
-  "id": "731791746123232", "created_at": "…", "administrator": "jabir",
+  "id": "friday-night-k3m9", "name": "Friday Night", "created_at": "…", "administrator": "jabir",
   "team_count": 2, "players_per_team": 1, "seats_taken": 2,
+  "settings": {"history": true, "highlights": true, "auto_draw_dead": false},
   "your_team": 0,                      // null when you only created the table
   "status": "playing",                 // open (no game yet) | playing | finished
   "started_at": "…", "finished_at": null, "winner_team": null,
@@ -55,10 +56,28 @@ The tables you created or sat at, newest first (at most 50). `401 NOT_SIGNED_IN`
 Rooms, seats, games and every move are stored in PostgreSQL, so tables and games in progress survive restarts.
 
 ### `POST /room/create` (auth)
-Body `{number_of_team, number_of_player_in_each_team}` (numbers or numeric strings).
-`200 {id}`. `id` is a numeric string such as `"731791746123232"`; the signed-in user becomes `administrator`.
-Errors are JSON `{error, message}`: `401 NOT_SIGNED_IN`, or `400 UNSUPPORTED_TABLE` for a table size the rules
-can't deal for (2 or 3 teams; 2, 3, 4, 6, 8, 9, 10 or 12 players in total).
+Body `{number_of_team, number_of_player_in_each_team, name?, history?, highlights?, auto_draw_dead?}`. Counts are
+numbers or numeric strings; settings are booleans (or `"true"` / `"false"`).
+`200 {id}`. `id` is the table's code: a slug of its name plus a 4-character suffix, such as `"friday-night-k3m9"`.
+Without a name the table gets a generated one ("Lucky Otter"). The signed-in user becomes `administrator` (the host).
+Errors are JSON `{error, message}`: `401 NOT_SIGNED_IN`, `400 UNSUPPORTED_TABLE` for a table size the rules
+can't deal for (2 or 3 teams; 2, 3, 4, 6, 8, 9, 10 or 12 players in total), `400 INVALID_NAME` (over 40
+characters), `400 INVALID_SETTINGS`.
+
+Settings and their defaults:
+
+| Setting | Default | Effect |
+|---|---|---|
+| `history` | `true` | Off: `GET /room/:id/turns` is `403 HISTORY_DISABLED` and the GameView's `log` keeps only the latest move |
+| `highlights` | `true` | Off: clients don't light up legal cells (the server only reports the setting) |
+| `auto_draw_dead` | `false` | On: a dead card is exchanged automatically when its owner's turn starts (their one exchange for that turn), logged as `{kind: "exchange", auto: true, …}` |
+
+Room codes created before slugs are numeric strings (`"731791746123232"`) and still work.
+
+### `PATCH /room/:id/settings` (auth, host)
+Body `{name?, history?, highlights?, auto_draw_dead?}`; missing keys keep their value. The code never changes.
+`200` with the Room, and `room_updated` is broadcast. `401 NOT_SIGNED_IN`, `403 NOT_HOST`, `404 ROOM_NOT_FOUND`,
+`409 GAME_ALREADY_STARTED` (settings are fixed once the game starts), `400 INVALID_NAME | INVALID_SETTINGS`.
 
 ### `GET /room/:id`
 `200` with a Room, or `200` with an **empty body** when the id doesn't exist.
@@ -67,7 +86,9 @@ can't deal for (2 or 3 teams; 2, 3, 4, 6, 8, 9, 10 or 12 players in total).
 // Room
 {
   "administrator": "jabir",
-  "id": "731791746123232",
+  "id": "friday-night-k3m9",
+  "name": "Friday Night",
+  "settings": {"history": true, "highlights": true, "auto_draw_dead": false},
   "created_at": "2026-10-15T05:48:22.696Z",
   "teams": [
     { "handle": "TEAM_1", "players": [ {"handle": "jabir", "name": "Jabir ibne kamal"}, null ] },
@@ -122,6 +143,8 @@ The GameView for the session's user. Anyone may watch; only seated players see a
   "deck_count": 90,
   "sequences": [{"team": 0, "cells": [{"row": 0, "column": 1}, …]}],
   "winner": null,
+  "name": "Friday Night",            // the room's name
+  "settings": {"history": true, "highlights": true, "auto_draw_dead": false},
   "log": [{"kind": "place", "turn": 1, "player": "Jabir ibne kamal", "team": 0, "card": "4-Spade", "pos": {"row": 1, "column": 5}, "wild": false}, …]
 }
 ```
@@ -135,7 +158,8 @@ broadcasts `game_updated`.
 
 ### `GET /room/:id/turns`
 The table's moves so far, oldest first. Public, like the game view, and never includes hands or the deck.
-`404 ROOM_NOT_FOUND | GAME_NOT_FOUND`; `[]` when the game has started but nobody has moved.
+`404 ROOM_NOT_FOUND | GAME_NOT_FOUND`, `403 HISTORY_DISABLED` when the room plays without history; `[]` when the
+game has started but nobody has moved.
 
 ```jsonc
 [{
