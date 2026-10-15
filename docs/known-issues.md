@@ -12,8 +12,7 @@ Confirmed by running the server and calling it with curl. Highest impact first.
 
 ## Stability
 
-5. `GET /user/profile` without a session **crashes the Node process** (`user` is undefined inside an unhandled
-   promise).
+5. ~~`GET /user/profile` without a session crashes the Node process~~ (fixed: `401 NOT_SIGNED_IN`).
 6. `GET /game/hand_cards` with an unknown handle returns `500`. A missing room returns `200` with an empty body.
 7. Errors come back as Express's HTML error page, and status codes are not meaningful (`404` for an invalid
    move, `200` for a failed join).
@@ -24,7 +23,8 @@ Confirmed by running the server and calling it with curl. Highest impact first.
 9. `room_updated` is sent to every connected socket, not just members of that room.
 10. Hands are readable by anyone (`player_handler` comes from the query string, not the session), and play is
     a state-changing `GET`.
-11. Hard-coded session secret. Users are hard-coded with plain-text passwords. Signup is a stub.
+11. ~~Hard-coded session secret, plain-text passwords, stub signup~~ (fixed: `SESSION_SECRET`, scrypt hashes in
+    PostgreSQL, working sign-up).
 
 ## Data integrity
 

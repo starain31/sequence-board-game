@@ -2,7 +2,7 @@
 
 ## Stack
 
-Node.js, Express `~4.16`, `express-session` (default in-memory store), `socket.io` (declared as `latest`, locked
+Node.js, Express `~4.16`, `express-session` (stored in PostgreSQL by `connect-pg-simple`), `express-rate-limit`, `socket.io` (declared as `latest`, locked
 to 2.3.0 by `package-lock.json`), PostgreSQL 16 through `pg` (plain SQL, no ORM), Jest for tests. CommonJS
 modules, no build step, no TypeScript.
 
@@ -29,6 +29,7 @@ npm start            # node ./bin/www, applies migrations, listens on PORT or 30
 npm test             # jest; the database tests run only when DATABASE_URL is set
 DATABASE_URL=postgres://sequence:sequence@localhost:5432/sequence npm test
 npm run db:migrate   # apply pending migrations without starting the server
+npm run db:seed      # create the development accounts jabir/1 and sakib/123 (compose does this itself)
 npm run debug        # nodemon
 npm run debug_1      # terminal game, moves read from console_controller/input.txt
 npm run debug_2      # terminal game, moves typed interactively (inquirer)
@@ -56,7 +57,7 @@ socket.js             Single Socket.IO server + broadcast({event, data}) to ever
 
 routes/               Thin routers: user, room, game, board
 controller/
-  user.js             signin (authenticate + service), profile
+  user.js             signup, signin, signout, profile (JSON errors)
   room.js             create / get / join room, broadcasts room_updated
   room_game.js        start a table's game, view it, play / exchange / pass; broadcasts game_updated
   board.js            serves data/board_deck.json (module singleton, also used as live board state)
@@ -65,11 +66,14 @@ controller/
 database/
   pool.js             PostgreSQL connection pool (DATABASE_URL) and ping() for /health
   migrate.js          SQL migration runner (also `npm run db:migrate`), tested in migrate.spec.js
-  migrations/         Numbered .sql files (none yet)
-  users.js            Hard-coded users: jabir/1, sakib/123 → {name, password}
+  migrations/         Numbered .sql files: 0001 users, 0002 session
+  users.js            Accounts in the users table; only find_credentials() reads password_hash
+  seed.js             Development accounts jabir/1, sakib/123 (`npm run db:seed`)
+  test_database.js    Gives a spec its own migrated schema (needs DATABASE_URL)
   rooms.js            In-memory rooms keyed by id; seats hold {handle, name}
   games.js            In-memory table games keyed by room id (kept apart so room payloads never carry hands)
 entity/               Domain layer (tested)
+  user.js             Sign-up rules, scrypt password hashing
   sequence_game.js    Full rules for table games: dealing, turns, jacks, dead cards, sequences, win. Wired to HTTP
   board.js            New_board(): get_deck, play, pretty_deck; move validation
   players.js          create_players({teams}): seating order, hands, team/player count validation
@@ -101,12 +105,25 @@ The `use_case` loop talks to the outside world through a controller object:
 
 ## State and lifetime
 
-PostgreSQL is wired in (see [Database](#database)), but no data uses it yet. Everything is still in memory and lost on restart: sessions, rooms, the legacy game (dealt once when
+Accounts and sessions are stored in PostgreSQL and survive restarts. Everything else is still in memory
+and lost on restart: rooms, table games, the legacy game (dealt once when
 `controller/game.js` is first required, at server start), and the board. There is one global HTTP game for
 the whole server, not one per room.
 
 ## Sessions
 
-Cookie `connect.sid`, HttpOnly, 1-hour expiry, rolling. No `SameSite` or `Secure` flag is set, the secret is
-hard-coded (`'work hard'`), and there is no CORS middleware. A frontend on another origin therefore needs a
-same-origin dev proxy, or backend changes (CORS with credentials, cookie `SameSite`).
+Cookie `connect.sid`: HttpOnly, `SameSite=Lax`, expires after 7 days without a request (rolling). The session
+row lives in the `session` table, holds only `handle`, and is deleted by `POST /user/signout`. There is no
+CORS middleware, so a frontend on another origin needs a same-origin proxy (the frontend's Vite dev server is one).
+
+Passwords are hashed with scrypt (`entity/user.js`). The hash string records its salt and cost parameters,
+so the cost can be raised without breaking existing accounts. Sign-in and sign-up are rate limited per client
+IP in memory (see [api.md](api.md#user)); limits reset when the server restarts.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_URL` | the compose database on localhost | PostgreSQL connection |
+| `SESSION_SECRET` | a fixed development value | Signs the session cookie. **Required** when `NODE_ENV=production` |
+| `COOKIE_SECURE` | off | `true` adds the `Secure` flag; set it when serving over HTTPS |
+| `TRUST_PROXY` | off | Express `trust proxy` (e.g. `1`), so rate limits see client IPs behind a reverse proxy |
+| `PORT` | `3000` | HTTP port |
