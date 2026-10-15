@@ -147,9 +147,18 @@ async function join({id, team_handle: handle, user, client}) {
     );
 }
 
-// The rooms a user created or sat at, newest first, with how far each got. `your_team` is null when the
-// user only created the room.
-async function list_for_user({user_id, limit = 50, client = pool}) {
+const USER_ROOMS_WHERE = `rooms.administrator_id = $1
+         OR EXISTS (SELECT 1 FROM room_seats WHERE room_seats.room_id = rooms.id AND room_seats.user_id = $1)`;
+
+// How many rooms list_for_user() can return in all, for paging.
+async function count_for_user({user_id, client = pool}) {
+    const {rows} = await client.query(`SELECT count(*)::INT AS total FROM rooms WHERE ${USER_ROOMS_WHERE}`, [user_id]);
+    return rows[0].total;
+}
+
+// The rooms a user created or sat at, newest first (ties by code, so pages never overlap), with how far each
+// got. `your_team` is null when the user only created the room.
+async function list_for_user({user_id, limit = 50, offset = 0, client = pool}) {
     const {rows} = await client.query(
         `SELECT rooms.id, rooms.name, rooms.created_at, administrators.handle AS administrator, ${SETTINGS_SELECT},
                 rooms.team_count, rooms.players_per_team,
@@ -164,12 +173,12 @@ async function list_for_user({user_id, limit = 50, client = pool}) {
          JOIN users AS administrators ON administrators.id = rooms.administrator_id
          LEFT JOIN room_seats AS my_seat ON my_seat.room_id = rooms.id AND my_seat.user_id = $1
          LEFT JOIN games ON games.room_id = rooms.id
-         WHERE rooms.administrator_id = $1 OR my_seat.user_id IS NOT NULL
-         ORDER BY rooms.created_at DESC
-         LIMIT $2`,
-        [user_id, limit]
+         WHERE ${USER_ROOMS_WHERE}
+         ORDER BY rooms.created_at DESC, rooms.id
+         LIMIT $2 OFFSET $3`,
+        [user_id, limit, offset]
     );
     return rows.map(read_settings);
 }
 
-module.exports = {create, update, get, is_seated, is_full, join, list_for_user};
+module.exports = {create, update, get, is_seated, is_full, join, list_for_user, count_for_user};

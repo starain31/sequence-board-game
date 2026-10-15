@@ -409,7 +409,7 @@ describe_with_database('rooms and table games', function () {
             const turns = await request(app).get(`/room/${id}/turns`);
             expect([turns.status, turns.body.error]).toEqual([403, 'HISTORY_DISABLED']);
             // Still recorded, so "Your tables" can count the moves.
-            const rooms = (await agents.carol.get('/user/rooms')).body;
+            const rooms = (await agents.carol.get('/user/rooms')).body.rooms;
             expect(rooms.find(function (r) {
                 return r.id === id;
             })).toMatchObject({name: 'Quiet', move_count: 3, settings: {history: false}});
@@ -427,7 +427,8 @@ describe_with_database('rooms and table games', function () {
             await agents[move.handle].post(`/room/${played}/game/play`).send(move.body).expect(200);
             await open_room('frank', 2, 1); // not Erin's
 
-            const rooms = (await agents.erin.get('/user/rooms')).body;
+            const {rooms, total, page, pages} = (await agents.erin.get('/user/rooms')).body;
+            expect({total, page, pages}).toEqual({total: 2, page: 1, pages: 1});
             expect(rooms.map(function (r) {
                 return [r.id, r.administrator, r.your_team, r.seats_taken, r.status, r.move_count];
             })).toEqual([
@@ -439,6 +440,29 @@ describe_with_database('rooms and table games', function () {
 
             const response = await request(app).get('/user/rooms');
             expect(response.status).toBe(401);
+        });
+
+        test('GET /user/rooms pages through the tables without repeats', async function () {
+            await sign_up('gina');
+            const opened = [];
+            for (let i = 0; i < 5; i++) opened.unshift(await open_room('gina'));
+
+            const first = (await agents.gina.get('/user/rooms?page=1&per_page=2')).body;
+            expect({page: first.page, per_page: first.per_page, total: first.total, pages: first.pages})
+                .toEqual({page: 1, per_page: 2, total: 5, pages: 3});
+            const pages = [first];
+            for (const page of [2, 3]) pages.push((await agents.gina.get(`/user/rooms?page=${page}&per_page=2`)).body);
+            expect(pages.flatMap(function (p) {
+                return p.rooms.map(function (r) {
+                    return r.id;
+                });
+            })).toEqual(opened);
+
+            expect((await agents.gina.get('/user/rooms?page=9&per_page=2')).body.rooms).toEqual([]);
+            // Bad or missing numbers fall back to the first page of 10; per_page is capped at 50.
+            const fallback = (await agents.gina.get('/user/rooms?page=zero&per_page=-3')).body;
+            expect([fallback.page, fallback.per_page, fallback.rooms.length]).toEqual([1, 10, 5]);
+            expect((await agents.gina.get('/user/rooms?per_page=500')).body.per_page).toBe(50);
         });
     });
 });

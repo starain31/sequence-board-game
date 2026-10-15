@@ -92,12 +92,25 @@ async function profile(req, res) {
 }
 
 // The signed-in user's tables, newest first: where they sat and how far each game got.
+const ROOMS_PER_PAGE = {default: 10, max: 50};
+
+// A positive whole number from the query string, or `fallback` when it is missing or not one.
+function positive_integer(value, fallback) {
+    const number = Number(value);
+    return Number.isInteger(number) && number >= 1 ? number : fallback;
+}
+
+/** GET /user/rooms?page=1&per_page=10: one page of the user's tables, newest first, with the totals for paging. */
 async function rooms(req, res) {
     const user = await db_user.get_user({handle: req.session.handle});
     if (user === undefined) {
         throw new UserError('NOT_SIGNED_IN', 'Sign in first.');
     }
-    res.send(await db_room.list_for_user({user_id: user.id}));
+    const per_page = Math.min(positive_integer(req.query.per_page, ROOMS_PER_PAGE.default), ROOMS_PER_PAGE.max);
+    const page = positive_integer(req.query.page, 1);
+    const total = await db_room.count_for_user({user_id: user.id});
+    const list = await db_room.list_for_user({user_id: user.id, limit: per_page, offset: (page - 1) * per_page});
+    res.send({rooms: list, page, per_page, total, pages: Math.max(1, Math.ceil(total / per_page))});
 }
 
 module.exports = {

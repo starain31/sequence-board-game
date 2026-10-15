@@ -37,10 +37,14 @@ Ends the session on the server and clears the cookie. Always `204`, with or with
 `200 {handle, name}`, or `401 NOT_SIGNED_IN`. Clients can use it to ask "am I signed in?".
 
 ### `GET /user/rooms` (auth)
-The tables you created or sat at, newest first (at most 50). `401 NOT_SIGNED_IN` without a session.
+One page of the tables you created or sat at, newest first. Query `page` (from 1, default 1) and `per_page`
+(default 10, at most 50); missing or invalid values use the defaults. A page past the end has no rooms.
+`401 NOT_SIGNED_IN` without a session.
 
 ```jsonc
-[{
+{
+ "page": 1, "per_page": 10, "total": 23, "pages": 3,
+ "rooms": [{
   "id": "friday-night-k3m9", "name": "Friday Night", "created_at": "…", "administrator": "jabir",
   "team_count": 2, "players_per_team": 1, "seats_taken": 2,
   "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90},
@@ -48,7 +52,8 @@ The tables you created or sat at, newest first (at most 50). `401 NOT_SIGNED_IN`
   "status": "playing",                 // open (no game yet) | playing | finished
   "started_at": "…", "finished_at": null, "winner_team": null,
   "move_count": 12
-}, …]
+ }, …]
+}
 ```
 
 ## Room
