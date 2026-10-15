@@ -156,23 +156,27 @@ async function count_for_user({user_id, client = pool}) {
     return rows[0].total;
 }
 
-// The rooms a user created or sat at, newest first (ties by code, so pages never overlap), with how far each
-// got. `your_team` is null when the user only created the room.
+// A user's rooms with how far each got: the columns of GET /user/rooms. $1 is the user's id. `your_team` is
+// null when the user only created the room.
+const USER_ROOMS_SELECT = `
+        SELECT rooms.id, rooms.name, rooms.created_at, administrators.handle AS administrator, ${SETTINGS_SELECT},
+               rooms.team_count, rooms.players_per_team,
+               my_seat.team AS your_team,
+               (SELECT count(*)::INT FROM room_seats WHERE room_seats.room_id = rooms.id) AS seats_taken,
+               CASE WHEN games.id IS NULL THEN 'open'
+                    WHEN games.finished_at IS NULL THEN 'playing'
+                    ELSE 'finished' END AS status,
+               games.started_at, games.updated_at AS last_move_at, games.finished_at, games.winner_team,
+               (SELECT count(*)::INT FROM turns WHERE turns.game_id = games.id) AS move_count
+        FROM rooms
+        JOIN users AS administrators ON administrators.id = rooms.administrator_id
+        LEFT JOIN room_seats AS my_seat ON my_seat.room_id = rooms.id AND my_seat.user_id = $1
+        LEFT JOIN games ON games.room_id = rooms.id`;
+
+// The rooms a user created or sat at, newest first (ties by code, so pages never overlap).
 async function list_for_user({user_id, limit = 50, offset = 0, client = pool}) {
     const {rows} = await client.query(
-        `SELECT rooms.id, rooms.name, rooms.created_at, administrators.handle AS administrator, ${SETTINGS_SELECT},
-                rooms.team_count, rooms.players_per_team,
-                my_seat.team AS your_team,
-                (SELECT count(*)::INT FROM room_seats WHERE room_seats.room_id = rooms.id) AS seats_taken,
-                CASE WHEN games.id IS NULL THEN 'open'
-                     WHEN games.finished_at IS NULL THEN 'playing'
-                     ELSE 'finished' END AS status,
-                games.started_at, games.finished_at, games.winner_team,
-                (SELECT count(*)::INT FROM turns WHERE turns.game_id = games.id) AS move_count
-         FROM rooms
-         JOIN users AS administrators ON administrators.id = rooms.administrator_id
-         LEFT JOIN room_seats AS my_seat ON my_seat.room_id = rooms.id AND my_seat.user_id = $1
-         LEFT JOIN games ON games.room_id = rooms.id
+        `${USER_ROOMS_SELECT}
          WHERE ${USER_ROOMS_WHERE}
          ORDER BY rooms.created_at DESC, rooms.id
          LIMIT $2 OFFSET $3`,
@@ -181,4 +185,17 @@ async function list_for_user({user_id, limit = 50, offset = 0, client = pool}) {
     return rows.map(read_settings);
 }
 
-module.exports = {create, update, get, is_seated, is_full, join, list_for_user, count_for_user};
+// The game in progress at which the user has a seat and that moved most recently, or undefined: the one to
+// offer first for resuming.
+async function current_for_user({user_id, client = pool}) {
+    const {rows} = await client.query(
+        `${USER_ROOMS_SELECT}
+         WHERE my_seat.user_id IS NOT NULL AND games.id IS NOT NULL AND games.finished_at IS NULL
+         ORDER BY games.updated_at DESC, rooms.id
+         LIMIT 1`,
+        [user_id]
+    );
+    return rows[0] === undefined ? undefined : read_settings(rows[0]);
+}
+
+module.exports = {create, update, get, is_seated, is_full, join, list_for_user, count_for_user, current_for_user};

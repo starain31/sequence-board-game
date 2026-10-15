@@ -113,10 +113,20 @@ async function rooms(req, res) {
     res.send({rooms: list, page, per_page, total, pages: Math.max(1, Math.ceil(total / per_page))});
 }
 
+/** GET /user/current-game: {room} for the game in progress you sat at that moved last, or {room: null}. */
+async function current_game(req, res) {
+    const user = await db_user.get_user({handle: req.session.handle});
+    if (user === undefined) {
+        throw new UserError('NOT_SIGNED_IN', 'Sign in first.');
+    }
+    res.send({room: (await db_room.current_for_user({user_id: user.id})) || null});
+}
+
 module.exports = {
     signup: handler(signup),
     signin: handler(signin),
     signout: handler(signout),
     profile: handler(profile),
     rooms: handler(rooms),
+    current_game: handler(current_game),
 };
