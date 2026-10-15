@@ -5,6 +5,12 @@ works. Auth means "uses the session cookie set by `/user/signin`". There is no g
 errors come back as Express's default **HTML** 500 page, not JSON. Behaviour below was confirmed against a
 running server.
 
+## Health
+
+### `GET /health`
+`200 {status: 'ok', database: 'up'}` when PostgreSQL answers, `503 {status: 'error', database: 'down'}` when it
+doesn't. Used by the backend's Docker healthcheck.
+
 ## User
 
 ### `POST /user/signin`

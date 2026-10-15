@@ -38,8 +38,8 @@ Confirmed by running the server and calling it with curl. Highest impact first.
 
 ## Tooling
 
-16. `socket.io` is pinned to `latest`, and `package-lock.json` is git-ignored, so installs are not
-    reproducible and CI's `npm ci` has no lockfile.
+16. `socket.io` is declared as `latest`. The committed `package-lock.json` keeps it on 2.3.0, but any
+    `npm install` that re-resolves it can jump a major (the frontend pins `socket.io-client@2.3.0`).
 17. `controller/index.js` is dead code. `public/views/room.html` is empty, `signin.html` posts to `/signin`
     (the real route is `/user/signin`), and the prototype UI loads an unpinned Vue from unpkg (now Vue 3,
     while the code is written for Vue 2).
