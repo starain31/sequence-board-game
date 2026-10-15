@@ -9,8 +9,15 @@ const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const ADJECTIVES = ['amber', 'brave', 'calm', 'clever', 'cosmic', 'golden', 'jolly', 'lucky', 'mellow', 'nimble', 'quiet', 'rapid', 'royal', 'swift', 'velvet', 'witty'];
 const NOUNS = ['badger', 'comet', 'falcon', 'harbor', 'lantern', 'maple', 'meadow', 'otter', 'pebble', 'raven', 'river', 'summit', 'thistle', 'tiger', 'willow', 'zephyr'];
 
+/**
+ * How a game is played. `training` is for learning: the player whose turn it is gets hints (a suggested move and
+ * why). `standard` games never get hints.
+ */
+const GAME_MODES = Object.freeze(['standard', 'training']);
+
 /** What a room does when its creator doesn't say otherwise. */
 const DEFAULT_SETTINGS = Object.freeze({
+    mode: 'standard',
     // Players can read every move so far (the move log and GET /room/:id/turns).
     history: true,
     // Legal cells light up when a card is picked.
@@ -85,6 +92,11 @@ function is_slug(text) {
     return typeof text === 'string' && SLUG_PATTERN.test(text);
 }
 
+function parse_mode(value) {
+    if (GAME_MODES.includes(value)) return value;
+    throw new RoomError('INVALID_SETTINGS', `The setting "mode" must be one of: ${GAME_MODES.join(', ')}.`);
+}
+
 function parse_flag(value, key) {
     if (value === true || value === 'true') return true;
     if (value === false || value === 'false') return false;
@@ -93,12 +105,13 @@ function parse_flag(value, key) {
 
 /**
  * Reads settings from a request body. Only keys in DEFAULT_SETTINGS are read; a missing key keeps the value
- * from `current` (the defaults for a new room). Throws INVALID_SETTINGS for a value that isn't a boolean.
+ * from `current` (the defaults for a new room). Throws INVALID_SETTINGS for an unknown mode or a flag that isn't
+ * a boolean.
  */
 function parse_settings(body = {}, current = DEFAULT_SETTINGS) {
     const settings = Object.assign({}, current);
     Object.keys(DEFAULT_SETTINGS).forEach(function (key) {
-        if (body[key] !== undefined) settings[key] = parse_flag(body[key], key);
+        if (body[key] !== undefined) settings[key] = key === 'mode' ? parse_mode(body[key]) : parse_flag(body[key], key);
     });
     return settings;
 }
@@ -106,6 +119,7 @@ function parse_settings(body = {}, current = DEFAULT_SETTINGS) {
 module.exports = {
     RoomError,
     DEFAULT_SETTINGS,
+    GAME_MODES,
     NAME_MAX_LENGTH,
     generate_name,
     normalize_name,

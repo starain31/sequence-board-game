@@ -86,7 +86,7 @@ describe_with_database('rooms and table games', function () {
             expect(response.body.id).toMatch(/^friday-night-cafe-[a-z0-9]{4}$/);
             const room = (await request(app).get(`/room/${response.body.id}`)).body;
             expect(room.name).toBe('Friday Night Café');
-            expect(room.settings).toEqual({history: true, highlights: true, auto_draw_dead: false});
+            expect(room.settings).toEqual({mode: 'standard', history: true, highlights: true, auto_draw_dead: false});
         });
 
         test('a table without a name gets a generated one', async function () {
@@ -108,10 +108,12 @@ describe_with_database('rooms and table games', function () {
 
         test('settings chosen at creation are stored', async function () {
             const response = await agents.alice.post('/room/create').send({
-                number_of_team: 2, number_of_player_in_each_team: 1, history: false, highlights: 'false', auto_draw_dead: true,
+                number_of_team: 2, number_of_player_in_each_team: 1, mode: 'training', history: false, highlights: 'false', auto_draw_dead: true,
             }).expect(200);
             const room = (await request(app).get(`/room/${response.body.id}`)).body;
-            expect(room.settings).toEqual({history: false, highlights: false, auto_draw_dead: true});
+            expect(room.settings).toEqual({mode: 'training', history: false, highlights: false, auto_draw_dead: true});
+            const bad = await agents.alice.post('/room/create').send({number_of_team: 2, number_of_player_in_each_team: 1, mode: 'easy'});
+            expect([bad.status, bad.body.error]).toEqual([400, 'INVALID_SETTINGS']);
         });
 
         test('refuses a bad name or setting', async function () {
@@ -325,7 +327,7 @@ describe_with_database('rooms and table games', function () {
             await join('bob', id, 'TEAM_2');
             const started = await agents.carol.post(`/room/${id}/start`).expect(200);
             expect(started.body.name).toBe('Quiet');
-            expect(started.body.settings).toEqual({history: false, highlights: true, auto_draw_dead: false});
+            expect(started.body.settings).toEqual({mode: 'standard', history: false, highlights: true, auto_draw_dead: false});
 
             for (let i = 0; i < 3; i++) {
                 const move = await legal_play(id);
