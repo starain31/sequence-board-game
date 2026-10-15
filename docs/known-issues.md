@@ -4,14 +4,11 @@ Confirmed by running the server and calling it with curl. Highest impact first.
 
 ## Breaks the game
 
-1. **Every valid move fails.** `controller/game.js` reads and writes `current_team`, which is never declared,
-   so `GET /game/play` throws a `ReferenceError` and returns `500`. It also calls `alternate_team`, which
-   doesn't exist.
+1. ~~Every valid move fails~~ (fixed: the legacy game uses the player's team and draws a replacement card).
 2. **Rooms and games are not connected.** There is no way to start a game from a room. The HTTP game uses
    4 hard-coded players and one global board shared by the whole server.
 3. **No sequence detection or win condition**, in either implementation.
-4. **The HTTP game has no turn order and no drawing.** Any player can move at any time, and played cards are
-   never replaced.
+4. **The HTTP game has no turn order.** Any player can move at any time.
 
 ## Stability
 
@@ -35,7 +32,8 @@ Confirmed by running the server and calling it with curl. Highest impact first.
     player counts, so a room can be configured in a way `entity/` would reject.
 13. The same user can occupy several seats. Joining without a session reports `success` but fills nothing.
 14. The legacy game mutates the `require`d `data/board_deck.json` module, so the "static" board data *is*
-    the live state.
+    the live state. (It also used to empty the shared `data/game_deck.json` array while shuffling; it now shuffles
+    a copy.)
 15. In `entity/`, an unsupported total player count (for example 15) silently deals no cards.
 
 ## Tooling
