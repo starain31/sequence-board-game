@@ -3,7 +3,7 @@ const db_user = require('../database/users');
 const db_game = require('../database/games');
 const {transaction} = require('../database/pool');
 const {is_supported_table} = require('../entity/sequence_game');
-const {RoomError, normalize_name, generate_slug, parse_settings} = require('../entity/room');
+const {RoomError, normalize_name, generate_slug, parse_settings, shuffle_seats} = require('../entity/room');
 const socket_server = require('../socket');
 
 /**
@@ -54,7 +54,7 @@ async function update_settings(req, res) {
             throw new RoomError('ROOM_NOT_FOUND', 'There is no table with that code.');
         }
         if (room.administrator !== handle) {
-            throw new RoomError('NOT_HOST', 'Only the player who opened this table can change its settings.');
+            throw new RoomError('NOT_HOST', `Only ${room.administrator_name}, who opened this table, can change its settings.`);
         }
         if (await db_game.get({room_id: id, client}) !== undefined) {
             throw new RoomError('GAME_ALREADY_STARTED', "The game has started, so the table's settings are fixed.");
@@ -88,6 +88,63 @@ async function join(req, res) {
     await broadcast_room({id});
 }
 
+/**
+ * POST /room/:id/leave: stand up from your seat before the game starts, so you can take another (or let the
+ * host reshuffle the teams). 200 with the room; JSON errors.
+ */
+async function leave(req, res) {
+    const user = await db_user.get_user({handle: req.session.handle});
+    if (user === undefined) {
+        throw new RoomError('NOT_SIGNED_IN', 'Sign in to change seats.');
+    }
+    const {id} = req.params;
+    await transaction(async function (client) {
+        const room = await db_room.get({id, client, lock: true});
+        if (room === undefined) {
+            throw new RoomError('ROOM_NOT_FOUND', 'There is no table with that code.');
+        }
+        if (await db_game.get({room_id: id, client}) !== undefined) {
+            throw new RoomError('GAME_ALREADY_STARTED', 'The game has started, so the seats are fixed.');
+        }
+        try {
+            await db_room.leave({id, user, client});
+        } catch (e) {
+            if (e === 'NOT_SEATED') throw new RoomError('NOT_SEATED', "You don't have a seat at this table.");
+            throw e;
+        }
+    });
+    res.send(await room_payload({id}));
+    await broadcast_room({id});
+}
+
+/** POST /room/:id/shuffle: the host deals the seated players out to the teams at random, before the game starts. */
+async function shuffle(req, res) {
+    const handle = req.session.handle;
+    if (handle === undefined) {
+        throw new RoomError('NOT_SIGNED_IN', 'Sign in to change seats.');
+    }
+    const {id} = req.params;
+    await transaction(async function (client) {
+        const room = await db_room.get({id, client, lock: true});
+        if (room === undefined) {
+            throw new RoomError('ROOM_NOT_FOUND', 'There is no table with that code.');
+        }
+        if (room.administrator !== handle) {
+            throw new RoomError('NOT_HOST', `Only ${room.administrator_name}, who opened this table, can shuffle the teams.`);
+        }
+        if (await db_game.get({room_id: id, client}) !== undefined) {
+            throw new RoomError('GAME_ALREADY_STARTED', 'The game has started, so the seats are fixed.');
+        }
+        const seated = Object.values(room.seated_user_ids);
+        const seats = shuffle_seats(seated, room.team_count, room.players_per_team).map(function ({team, seat, player}) {
+            return {team, seat, user_id: player};
+        });
+        await db_room.reseat({id, seats, client});
+    });
+    res.send(await room_payload({id}));
+    await broadcast_room({id});
+}
+
 async function room_payload({id}) {
     const room = await db_room.get({id});
     if (room === undefined) {
@@ -97,6 +154,7 @@ async function room_payload({id}) {
         id: room.id,
         name: room.name,
         administrator: room.administrator,
+        administrator_name: room.administrator_name,
         settings: room.settings,
         teams: room.teams,
         created_at: room.created_at,
@@ -117,6 +175,7 @@ const STATUS_BY_ERROR = {
     NOT_HOST: 403,
     ROOM_NOT_FOUND: 404,
     GAME_ALREADY_STARTED: 409,
+    NOT_SEATED: 409,
 };
 
 // Express 4 doesn't catch rejected promises; answer instead of leaving the request hanging.
@@ -138,6 +197,8 @@ module.exports = {
     join: handler(join),
     room: handler(room),
     update_settings: handler(update_settings),
+    leave: handler(leave),
+    shuffle: handler(shuffle),
     room_payload,
     broadcast_room,
 };

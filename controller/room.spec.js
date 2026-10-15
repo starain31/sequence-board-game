@@ -168,6 +168,60 @@ describe_with_database('rooms and table games', function () {
             expect(room.teams[0].players).toEqual([{handle: 'alice', name: 'Player alice'}]);
         });
 
+        test('a player can stand up and take another seat until the game starts', async function () {
+            const id = await open_room('alice', 2, 1);
+            await join('alice', id, 'TEAM_1');
+            await join('bob', id, 'TEAM_2');
+
+            const left = await agents.alice.post(`/room/${id}/leave`);
+            expect(left.status).toBe(200);
+            expect(left.body.teams.map(function (t) {
+                return t.players;
+            })).toEqual([[null], [{handle: 'bob', name: 'Player bob'}]]);
+            // The freed seat can be taken by anyone, including the player who left.
+            expect(await join('carol', id, 'TEAM_1')).toBe('success');
+            await agents.carol.post(`/room/${id}/leave`).expect(200);
+            expect(await join('alice', id, 'TEAM_1')).toBe('success');
+
+            const twice = await agents.dave.post(`/room/${id}/leave`);
+            expect([twice.status, twice.body.error]).toEqual([409, 'NOT_SEATED']);
+            expect((await request(app).post(`/room/${id}/leave`)).status).toBe(401);
+            expect((await agents.alice.post('/room/nope/leave')).status).toBe(404);
+
+            await agents.alice.post(`/room/${id}/start`).expect(200);
+            const late = await agents.bob.post(`/room/${id}/leave`);
+            expect([late.status, late.body.error]).toEqual([409, 'GAME_ALREADY_STARTED']);
+        });
+
+        test('the host can shuffle seated players across the teams', async function () {
+            const id = await open_room('alice', 2, 2);
+            await join('alice', id, 'TEAM_1');
+            await join('bob', id, 'TEAM_1');
+            await join('carol', id, 'TEAM_2');
+
+            const shuffled = await agents.alice.post(`/room/${id}/shuffle`);
+            expect(shuffled.status).toBe(200);
+            const players = shuffled.body.teams.flatMap(function (t) {
+                return t.players;
+            }).filter(Boolean).map(function (p) {
+                return p.handle;
+            });
+            expect(players.sort()).toEqual(['alice', 'bob', 'carol']);
+            // Three players on two teams of two: each team gets at least one.
+            expect(shuffled.body.teams.every(function (t) {
+                return t.players[0] !== null;
+            })).toBe(true);
+            expect(JSON.stringify(shuffled.body)).not.toMatch(/user_id/);
+
+            const guest = await agents.bob.post(`/room/${id}/shuffle`);
+            expect([guest.status, guest.body.error]).toEqual([403, 'NOT_HOST']);
+            await join('dave', id, shuffled.body.teams.find(function (t) {
+                return t.players.includes(null);
+            }).handle);
+            await agents.alice.post(`/room/${id}/start`).expect(200);
+            expect((await agents.alice.post(`/room/${id}/shuffle`)).body.error).toBe('GAME_ALREADY_STARTED');
+        });
+
         test('gives a contested last seat to exactly one player', async function () {
             const id = await open_room('alice', 2, 1);
             await join('alice', id, 'TEAM_1');
@@ -187,7 +241,9 @@ describe_with_database('rooms and table games', function () {
             expect((await agents.carol.post(`/room/${id}/start`)).body.error).toBe('NOT_HOST');
             const seated_guest = await agents.bob.post(`/room/${id}/start`);
             expect([seated_guest.status, seated_guest.body.error]).toEqual([403, 'NOT_HOST']);
-            expect(seated_guest.body.message).toMatch(/alice/);
+            // Players are addressed by their display name, not their handle.
+            expect(seated_guest.body.message).toBe('Only Player alice, who opened this table, can start its game.');
+            expect((await request(app).get(`/room/${id}`)).body).toMatchObject({administrator: 'alice', administrator_name: 'Player alice'});
 
             const started = await agents.alice.post(`/room/${id}/start`);
             expect(started.status).toBe(200);

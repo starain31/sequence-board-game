@@ -119,7 +119,7 @@ the whole server, not one per room.
 | Table | One row per | Notes |
 |---|---|---|
 | `rooms` | table | Code (`id`, a slug of the name such as `friday-night-k3m9`; older rooms have numeric codes), name, creator, team layout, settings (`game_mode`, `history_enabled`, `highlights_enabled`, `auto_draw_dead`, `turn_seconds`), creation time |
-| `room_seats` | taken seat | Primary key (room, team, seat) and unique (room, user): one player per seat, one seat per player |
+| `room_seats` | taken seat | Primary key (room, team, seat) and unique (room, user): one player per seat, one seat per player. Rows can be removed (standing up, reshuffling) only until the game starts; after that they are the room's history |
 | `games` | room's game | Full rules state as JSONB (hands and deck included, so only `view_for()` output is ever sent), started / updated / finished time, winning team |
 | `turns` | accepted move | Append-only: move number, game turn, player, team, kind, card, cell, and the log events the move produced |
 

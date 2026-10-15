@@ -96,7 +96,7 @@ async function start(req, res) {
     const {room, game} = await transaction(async function (client) {
         const room = await find_room(id, client);
         if (room.administrator !== handle) {
-            throw new GameError('NOT_HOST', `Only ${room.administrator}, who opened this table, can start its game.`);
+            throw new GameError('NOT_HOST', `Only ${room.administrator_name}, who opened this table, can start its game.`);
         }
         if (await db_game.get({room_id: id, client}) !== undefined) {
             throw new GameError('GAME_ALREADY_STARTED', "This table's game has already started.");

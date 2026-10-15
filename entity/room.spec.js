@@ -8,6 +8,7 @@ const {
     generate_slug,
     is_slug,
     parse_settings,
+    shuffle_seats,
 } = require('./room');
 
 function fixed(value) {
@@ -103,5 +104,24 @@ describe('settings', function () {
         expect(function () {
             parse_settings({history: 'yes'});
         }).toThrow(expect.objectContaining({code: 'INVALID_SETTINGS'}));
+    });
+});
+
+describe('shuffle_seats', function () {
+    test('deals players out so teams stay even', function () {
+        const seats = shuffle_seats(['a', 'b', 'c'], 3, 2, fixed(0));
+        expect(seats.map(function (s) {
+            return [s.team, s.seat];
+        })).toEqual([[0, 0], [1, 0], [2, 0]]);
+        expect(seats.map(function (s) {
+            return s.player;
+        }).sort()).toEqual(['a', 'b', 'c']);
+    });
+
+    test('fills every seat of a full table exactly once', function () {
+        const seats = shuffle_seats(['a', 'b', 'c', 'd'], 2, 2);
+        expect(new Set(seats.map(function (s) {
+            return `${s.team}-${s.seat}`;
+        })).size).toBe(4);
     });
 });

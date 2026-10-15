@@ -76,12 +76,13 @@ async function update({id, name, settings, client = pool}) {
     );
 }
 
-// {id, name, administrator, team_count, players_per_team, created_at, settings: {mode, history, highlights, auto_draw_dead, turn_seconds},
+// {id, name, administrator, administrator_name, team_count, players_per_team, created_at, settings: {mode, history, highlights, auto_draw_dead, turn_seconds},
 //  teams: [{handle, players: [{handle, name} | null]}]} or undefined. `lock` holds the room row until the
 // transaction ends, which serialises joins, starts and settings changes.
 async function get({id, client = pool, lock = false}) {
     const {rows} = await client.query(
-        `SELECT rooms.id, rooms.name, users.handle AS administrator, rooms.team_count, rooms.players_per_team,
+        `SELECT rooms.id, rooms.name, users.handle AS administrator, users.name AS administrator_name,
+                rooms.team_count, rooms.players_per_team,
                 rooms.created_at, ${SETTINGS_SELECT}
          FROM rooms JOIN users ON users.id = rooms.administrator_id
          WHERE rooms.id = $1 ${lock ? 'FOR UPDATE OF rooms' : ''}`,
@@ -93,7 +94,7 @@ async function get({id, client = pool, lock = false}) {
     }
     read_settings(room);
     const seats = await client.query(
-        `SELECT room_seats.team, room_seats.seat, users.handle, users.name
+        `SELECT room_seats.team, room_seats.seat, room_seats.user_id, users.handle, users.name
          FROM room_seats JOIN users ON users.id = room_seats.user_id
          WHERE room_seats.room_id = $1`,
         [room.id]
@@ -101,8 +102,11 @@ async function get({id, client = pool, lock = false}) {
     room.teams = Array.from({length: room.team_count}, function (value, index) {
         return {handle: team_handle(index), players: Array(room.players_per_team).fill(null)};
     });
-    seats.rows.forEach(function ({team, seat, handle, name}) {
+    // user_id stays on the room (for reseating) and out of the payload.
+    room.seated_user_ids = {};
+    seats.rows.forEach(function ({team, seat, user_id, handle, name}) {
         room.teams[team].players[seat] = {handle, name};
+        room.seated_user_ids[handle] = user_id;
     });
     return room;
 }
@@ -159,7 +163,8 @@ async function count_for_user({user_id, client = pool}) {
 // A user's rooms with how far each got: the columns of GET /user/rooms. $1 is the user's id. `your_team` is
 // null when the user only created the room.
 const USER_ROOMS_SELECT = `
-        SELECT rooms.id, rooms.name, rooms.created_at, administrators.handle AS administrator, ${SETTINGS_SELECT},
+        SELECT rooms.id, rooms.name, rooms.created_at, administrators.handle AS administrator,
+               administrators.name AS administrator_name, ${SETTINGS_SELECT},
                rooms.team_count, rooms.players_per_team,
                my_seat.team AS your_team,
                (SELECT count(*)::INT FROM room_seats WHERE room_seats.room_id = rooms.id) AS seats_taken,
@@ -172,6 +177,24 @@ const USER_ROOMS_SELECT = `
         JOIN users AS administrators ON administrators.id = rooms.administrator_id
         LEFT JOIN room_seats AS my_seat ON my_seat.room_id = rooms.id AND my_seat.user_id = $1
         LEFT JOIN games ON games.room_id = rooms.id`;
+
+// Frees the user's seat. Call inside the transaction that locked the room and checked the game hasn't
+// started. Throws NOT_SEATED when the user has no seat here.
+async function leave({id, user, client}) {
+    const {rowCount} = await client.query('DELETE FROM room_seats WHERE room_id = $1 AND user_id = $2', [String(id), user.id]);
+    if (rowCount === 0) {
+        throw 'NOT_SEATED';
+    }
+}
+
+// Replaces every seat with `seats` ([{team, seat, user_id}]). Call inside the transaction that locked the
+// room and checked the game hasn't started.
+async function reseat({id, seats, client}) {
+    await client.query('DELETE FROM room_seats WHERE room_id = $1', [String(id)]);
+    for (const {team, seat, user_id} of seats) {
+        await client.query('INSERT INTO room_seats (room_id, team, seat, user_id) VALUES ($1, $2, $3, $4)', [String(id), team, seat, user_id]);
+    }
+}
 
 // The rooms a user created or sat at, newest first (ties by code, so pages never overlap).
 async function list_for_user({user_id, limit = 50, offset = 0, client = pool}) {
@@ -198,4 +221,4 @@ async function current_for_user({user_id, client = pool}) {
     return rows[0] === undefined ? undefined : read_settings(rows[0]);
 }
 
-module.exports = {create, update, get, is_seated, is_full, join, list_for_user, count_for_user, current_for_user};
+module.exports = {create, update, get, is_seated, is_full, join, leave, reseat, list_for_user, count_for_user, current_for_user};
