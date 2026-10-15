@@ -18,4 +18,20 @@ async function ping() {
     await pool.query('SELECT 1');
 }
 
-module.exports = {pool, ping};
+// Runs action(client) inside BEGIN … COMMIT on one connection, rolling back if it throws.
+async function transaction(action) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const result = await action(client);
+        await client.query('COMMIT');
+        return result;
+    } catch (error) {
+        await client.query('ROLLBACK').catch(function () {});
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+module.exports = {pool, ping, transaction};
