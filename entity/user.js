@@ -5,7 +5,9 @@ const {promisify} = require('util');
 const scrypt = promisify(crypto.scrypt);
 
 const HANDLE_PATTERN = /^[a-z0-9_]{3,20}$/;
-const NAME_MAX_LENGTH = 50;
+// New accounts' display names are short, so they fit in turn panels and seat lists. (The users table allows up to
+// 50, so accounts made before keep their names.)
+const NAME_MAX_LENGTH = 10;
 const PASSWORD_MIN_LENGTH = 8;
 // Hashing cost grows with input length; cap it so a huge password can't tie up the server.
 const PASSWORD_MAX_LENGTH = 200;

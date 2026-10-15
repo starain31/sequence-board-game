@@ -19,7 +19,7 @@ they are trimmed and lower-cased before use, and responses always carry the stor
 ### `POST /user/signup`
 Body `{handle, name, password}`. Creates the account and signs it in (sets cookie `connect.sid`).
 - Success: `201 {handle, name}`.
-- `400 INVALID_HANDLE` (3–20 of `a-z 0-9 _`), `400 INVALID_NAME` (1–50 characters after trimming),
+- `400 INVALID_HANDLE` (3–20 of `a-z 0-9 _`), `400 INVALID_NAME` (1–10 characters after trimming; accounts made before this limit keep longer names),
   `400 WEAK_PASSWORD` (8–200 characters).
 - `409 HANDLE_TAKEN`.
 - `429 TOO_MANY_ATTEMPTS` after 20 sign-ups from one IP within an hour.
