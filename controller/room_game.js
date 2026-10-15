@@ -4,6 +4,7 @@ const {transaction} = require('../database/pool');
 const socket_server = require('../socket');
 const {broadcast_room} = require('./room');
 const {RuleError, create_game, apply_move, view_for} = require('../entity/sequence_game');
+const {suggest_move} = require('../entity/hints');
 
 // A game played at a room's table. Errors are JSON: {error: CODE, message}.
 
@@ -51,9 +52,14 @@ async function find_game(id, client) {
     return {room, game};
 }
 
-// The game as `handle` sees it, under the room's settings.
+// The game as `handle` sees it, under the room's settings. Hints exist only in training games, and only for the
+// player whose turn it is, so a standard game never sends one.
 function view(room, game, handle) {
-    return Object.assign(view_for(game, handle, room.settings), {name: room.name});
+    const seen = view_for(game, handle, room.settings);
+    const hint = room.settings.mode === 'training' && seen.current_player !== null && seen.current_player === handle
+        ? suggest_move(game)
+        : null;
+    return Object.assign(seen, {name: room.name, hint});
 }
 
 function signed_in_handle(req) {

@@ -293,6 +293,46 @@ describe_with_database('rooms and table games', function () {
         ]);
     });
 
+    describe('game modes', function () {
+        async function started(mode) {
+            const id = (await agents.alice.post('/room/create')
+                .send({number_of_team: 2, number_of_player_in_each_team: 1, mode}).expect(200)).body.id;
+            await join('alice', id, 'TEAM_1');
+            await join('bob', id, 'TEAM_2');
+            await agents.alice.post(`/room/${id}/start`).expect(200);
+            return id;
+        }
+
+        test('a training game hints the player whose turn it is, and nobody else', async function () {
+            const id = await started('training');
+            const state = await require('../database/games').get({room_id: id});
+            const current = state.players[state.current].handle;
+            const waiting = current === 'alice' ? 'bob' : 'alice';
+
+            const mine = (await agents[current].get(`/room/${id}/game`)).body;
+            expect(mine.settings.mode).toBe('training');
+            expect(mine.hint).toEqual(require('../entity/hints').suggest_move(state));
+            expect(mine.hint.type).toMatch(/^(play|exchange|pass)$/);
+            expect((await agents[waiting].get(`/room/${id}/game`)).body.hint).toBeNull();
+            expect((await request(app).get(`/room/${id}/game`)).body.hint).toBeNull();
+
+            // The hinted move is legal.
+            if (mine.hint.type === 'play') {
+                const body = {hand_index: mine.hint.hand_index, row: mine.hint.target.row, column: mine.hint.target.column};
+                const played = await agents[current].post(`/room/${id}/game/play`).send(body);
+                expect(played.status).toBe(200);
+                expect(played.body.hint).toBeNull();
+            }
+        });
+
+        test('a standard game never sends a hint', async function () {
+            const id = await started('standard');
+            for (const handle of ['alice', 'bob']) {
+                expect((await agents[handle].get(`/room/${id}/game`)).body.hint).toBeNull();
+            }
+        });
+    });
+
     describe('history', function () {
         test('GET /room/:id/turns lists the moves with their players, without hands', async function () {
             const id = await open_room('carol', 2, 1);
