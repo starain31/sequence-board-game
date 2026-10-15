@@ -76,7 +76,9 @@ Query string:
 
 Responses:
 - Invalid move: `404`, plain text `Invalid Move`.
-- Valid move: intended `200 {verdict: "Valid", current_team}`, but **currently always `500`** (HTML) because
+- Valid move: `200 {verdict: "Valid", team}`. The chip is placed (or removed by a one-eyed jack) and the played card
+  is replaced from the deck. There is still no turn order.
+- (Before the fix, every valid move was a `500` because
   `current_team` is undefined. The board is not changed and no card is drawn.
 
 ## Socket.IO
