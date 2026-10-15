@@ -219,4 +219,57 @@ describe_with_database('rooms and table games', function () {
             {move_number: 2, kind: 'pass', card: null, cell_row: null, events: [{kind: 'pass'}]},
         ]);
     });
+
+    describe('history', function () {
+        test('GET /room/:id/turns lists the moves with their players, without hands', async function () {
+            const id = await open_room('carol', 2, 1);
+            await join('carol', id, 'TEAM_1');
+            await join('bob', id, 'TEAM_2');
+            expect((await request(app).get(`/room/${id}/turns`)).body.error).toBe('GAME_NOT_FOUND');
+            await agents.carol.post(`/room/${id}/start`).expect(200);
+            expect((await request(app).get(`/room/${id}/turns`)).body).toEqual([]);
+
+            const first = await legal_play(id);
+            await agents[first.handle].post(`/room/${id}/game/play`).send(first.body).expect(200);
+            const second = await legal_play(id);
+            await agents[second.handle].post(`/room/${id}/game/play`).send(second.body).expect(200);
+
+            const turns = (await request(app).get(`/room/${id}/turns`)).body;
+            expect(turns.map(function (t) {
+                return [t.move_number, t.turn, t.player.handle, t.kind, t.cell];
+            })).toEqual([
+                [1, 1, first.handle, 'play', {row: first.body.row, column: first.body.column}],
+                [2, 2, second.handle, 'play', {row: second.body.row, column: second.body.column}],
+            ]);
+            expect(turns[0].player.name).toBe(`Player ${first.handle}`);
+            expect(JSON.stringify(turns)).not.toMatch(/"(hands?|deck|discard)"/);
+            expect((await request(app).get('/room/nope/turns')).status).toBe(404);
+        });
+
+        test('GET /user/rooms lists the tables a user created or sat at, newest first', async function () {
+            await sign_up('erin');
+            await sign_up('frank');
+            const created_only = await open_room('erin', 2, 1);
+            const played = await open_room('frank', 2, 1);
+            await join('frank', played, 'TEAM_1');
+            await join('erin', played, 'TEAM_2');
+            await agents.frank.post(`/room/${played}/start`).expect(200);
+            const move = await legal_play(played);
+            await agents[move.handle].post(`/room/${played}/game/play`).send(move.body).expect(200);
+            await open_room('frank', 2, 1); // not Erin's
+
+            const rooms = (await agents.erin.get('/user/rooms')).body;
+            expect(rooms.map(function (r) {
+                return [r.id, r.administrator, r.your_team, r.seats_taken, r.status, r.move_count];
+            })).toEqual([
+                [played, 'frank', 1, 2, 'playing', 1],
+                [created_only, 'erin', null, 0, 'open', 0],
+            ]);
+            expect(rooms[0].started_at).toEqual(expect.any(String));
+            expect(rooms[0].finished_at).toBeNull();
+
+            const response = await request(app).get('/user/rooms');
+            expect(response.status).toBe(401);
+        });
+    });
 });

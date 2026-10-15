@@ -88,4 +88,29 @@ async function join({id, team_handle: handle, user, client}) {
     );
 }
 
-module.exports = {create, get, is_seated, is_full, join};
+// The rooms a user created or sat at, newest first, with how far each got. `your_team` is null when the
+// user only created the room.
+async function list_for_user({user_id, limit = 50, client = pool}) {
+    const {rows} = await client.query(
+        `SELECT rooms.id, rooms.created_at, administrators.handle AS administrator,
+                rooms.team_count, rooms.players_per_team,
+                my_seat.team AS your_team,
+                (SELECT count(*)::INT FROM room_seats WHERE room_seats.room_id = rooms.id) AS seats_taken,
+                CASE WHEN games.id IS NULL THEN 'open'
+                     WHEN games.finished_at IS NULL THEN 'playing'
+                     ELSE 'finished' END AS status,
+                games.started_at, games.finished_at, games.winner_team,
+                (SELECT count(*)::INT FROM turns WHERE turns.game_id = games.id) AS move_count
+         FROM rooms
+         JOIN users AS administrators ON administrators.id = rooms.administrator_id
+         LEFT JOIN room_seats AS my_seat ON my_seat.room_id = rooms.id AND my_seat.user_id = $1
+         LEFT JOIN games ON games.room_id = rooms.id
+         WHERE rooms.administrator_id = $1 OR my_seat.user_id IS NOT NULL
+         ORDER BY rooms.created_at DESC
+         LIMIT $2`,
+        [user_id, limit]
+    );
+    return rows;
+}
+
+module.exports = {create, get, is_seated, is_full, join, list_for_user};

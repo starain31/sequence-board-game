@@ -41,4 +41,31 @@ async function record_move({room_id, previous, next, handle, move, client}) {
     );
 }
 
-module.exports = {get, create, record_move};
+// The room's moves in play order, with who made them. Only public information: no hands, no deck.
+async function list_turns({room_id, client = pool}) {
+    const {rows} = await client.query(
+        `SELECT turns.move_number, turns.turn, users.handle, users.name, turns.team, turns.kind, turns.card,
+                turns.cell_row, turns.cell_column, turns.events, turns.created_at
+         FROM turns
+         JOIN games ON games.id = turns.game_id
+         JOIN users ON users.id = turns.user_id
+         WHERE games.room_id = $1
+         ORDER BY turns.move_number`,
+        [String(room_id)]
+    );
+    return rows.map(function (row) {
+        return {
+            move_number: row.move_number,
+            turn: row.turn,
+            player: {handle: row.handle, name: row.name},
+            team: row.team,
+            kind: row.kind,
+            card: row.card,
+            cell: row.cell_row === null ? null : {row: row.cell_row, column: row.cell_column},
+            events: row.events,
+            created_at: row.created_at,
+        };
+    });
+}
+
+module.exports = {get, create, record_move, list_turns};

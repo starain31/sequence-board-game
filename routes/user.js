@@ -20,5 +20,6 @@ router.post('/signup', limit({limit: 20, minutes: 60}), user.signup);
 router.post('/signout', user.signout);
 
 router.get('/profile', user.profile);
+router.get('/rooms', user.rooms);
 
 module.exports = router;

@@ -1,4 +1,5 @@
 const db_user = require('../database/users');
+const db_room = require('../database/rooms');
 const {UserError, normalize_handle, validate_signup, hash_password, verify_password} = require('../entity/user');
 
 // Account endpoints. Errors are JSON: {error: CODE, message}, like the table game endpoints.
@@ -90,9 +91,19 @@ async function profile(req, res) {
     res.send(public_profile(user));
 }
 
+// The signed-in user's tables, newest first: where they sat and how far each game got.
+async function rooms(req, res) {
+    const user = await db_user.get_user({handle: req.session.handle});
+    if (user === undefined) {
+        throw new UserError('NOT_SIGNED_IN', 'Sign in first.');
+    }
+    res.send(await db_room.list_for_user({user_id: user.id}));
+}
+
 module.exports = {
     signup: handler(signup),
     signin: handler(signin),
     signout: handler(signout),
     profile: handler(profile),
+    rooms: handler(rooms),
 };

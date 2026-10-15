@@ -7,6 +7,7 @@ room_router.get('/:id', room);
 room_router.post('/:id/join', join);
 room_router.post('/:id/start', room_game.start);
 room_router.get('/:id/game', room_game.get);
+room_router.get('/:id/turns', room_game.turns);
 room_router.post('/:id/game/play', room_game.play);
 room_router.post('/:id/game/exchange', room_game.exchange);
 room_router.post('/:id/game/pass', room_game.pass);

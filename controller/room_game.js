@@ -97,6 +97,12 @@ async function get(req, res) {
     res.send(view_for(game, req.session.handle));
 }
 
+/** GET /room/:id/turns: every move so far, oldest first. Public, like the game view. */
+async function turns(req, res) {
+    await find_game(req.params.id);
+    res.send(await db_game.list_turns({room_id: req.params.id}));
+}
+
 function move_handler(build_move) {
     return handler(async function (req, res) {
         const {id} = req.params;
@@ -133,4 +139,4 @@ const pass = move_handler(function () {
     return {type: 'pass'};
 });
 
-module.exports = {start: handler(start), get: handler(get), play, exchange, pass};
+module.exports = {start: handler(start), get: handler(get), turns: handler(turns), play, exchange, pass};
