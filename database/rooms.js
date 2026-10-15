@@ -1,7 +1,8 @@
-const rooms = [];
+const rooms = {};
 
 function create({administrator, id, number_of_team, number_of_player_in_each_team}) {
     rooms[id] = {
+        id,
         administrator,
         teams: Array.from({length: Number(number_of_team)}, function (value, index) {
             return {
