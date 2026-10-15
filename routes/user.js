@@ -21,5 +21,6 @@ router.post('/signout', user.signout);
 
 router.get('/profile', user.profile);
 router.get('/rooms', user.rooms);
+router.get('/current-game', user.current_game);
 
 module.exports = router;

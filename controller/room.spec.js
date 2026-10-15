@@ -442,6 +442,34 @@ describe_with_database('rooms and table games', function () {
             expect(response.status).toBe(401);
         });
 
+        test('GET /user/current-game is the seated game in progress that moved last', async function () {
+            await sign_up('hana');
+            await sign_up('ivan');
+            expect((await agents.hana.get('/user/current-game')).body).toEqual({room: null});
+
+            async function playing(name) {
+                const id = (await agents.hana.post('/room/create')
+                    .send({number_of_team: 2, number_of_player_in_each_team: 1, name}).expect(200)).body.id;
+                await join('hana', id, 'TEAM_1');
+                await join('ivan', id, 'TEAM_2');
+                await agents.hana.post(`/room/${id}/start`).expect(200);
+                return id;
+            }
+            const older = await playing('Older');
+            const newer = await playing('Newer');
+            await open_room('hana'); // open, no game: never current
+            expect((await agents.hana.get('/user/current-game')).body.room).toMatchObject({id: newer, status: 'playing', your_team: 0});
+
+            // A move at the older table makes it the latest.
+            const move = await legal_play(older);
+            await agents[move.handle].post(`/room/${older}/game/play`).send(move.body).expect(200);
+            const current = (await agents.hana.get('/user/current-game')).body.room;
+            expect(current).toMatchObject({id: older, name: 'Older', move_count: 1});
+            expect(current.last_move_at).toEqual(expect.any(String));
+
+            expect((await request(app).get('/user/current-game')).status).toBe(401);
+        });
+
         test('GET /user/rooms pages through the tables without repeats', async function () {
             await sign_up('gina');
             const opened = [];

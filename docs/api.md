@@ -50,11 +50,15 @@ One page of the tables you created or sat at, newest first. Query `page` (from 1
   "settings": {"mode": "standard", "history": false, "highlights": false, "auto_draw_dead": false, "turn_seconds": 90},
   "your_team": 0,                      // null when you only created the table
   "status": "playing",                 // open (no game yet) | playing | finished
-  "started_at": "…", "finished_at": null, "winner_team": null,
+  "started_at": "…", "last_move_at": "…", "finished_at": null, "winner_team": null,
   "move_count": 12
  }, …]
 }
 ```
+
+### `GET /user/current-game` (auth)
+`200 {room}`: the game in progress where you have a seat that moved most recently (the room as in
+`GET /user/rooms`), or `{room: null}`. For a dashboard's "resume your game". `401 NOT_SIGNED_IN` without a session.
 
 ## Room
 
