@@ -32,5 +32,6 @@ with a 500 error (see [known-issues.md](known-issues.md)).
 | Play a move over HTTP | Broken (500 on every valid move) |
 | Turn order, dealing, drawing | Only in `entity/` + `use_case/` (terminal runners) |
 | Sequence detection, win condition, dead cards | Not implemented anywhere |
-| Persistence | None, everything resets on restart |
+| Persistence | PostgreSQL and migrations are set up; no data is stored in it yet |
 | CORS | Not configured |
+| Local environment | `docker compose up` (Postgres, backend, frontend), see [architecture.md](architecture.md#run) |
