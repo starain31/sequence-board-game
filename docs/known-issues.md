@@ -20,7 +20,7 @@ Confirmed by running the server and calling it with curl. Highest impact first.
 
 ## Security
 
-8. Room payloads (HTTP and the `room_updated` broadcast) include users' **plain-text passwords**.
+8. ~~Room payloads include plain-text passwords~~ (fixed: seats store only `handle` and `name`).
 9. `room_updated` is sent to every connected socket, not just members of that room.
 10. Hands are readable by anyone (`player_handler` comes from the query string, not the session), and play is
     a state-changing `GET`.
@@ -30,7 +30,7 @@ Confirmed by running the server and calling it with curl. Highest impact first.
 
 12. `room/create` works without a session (`administrator` is undefined) and doesn't validate the team or
     player counts, so a room can be configured in a way `entity/` would reject.
-13. The same user can occupy several seats. Joining without a session reports `success` but fills nothing.
+13. ~~The same user can occupy several seats~~ (fixed: `ALREADY_SEATED`; joining without a session is `NOT_SIGNED_IN`).
 14. The legacy game mutates the `require`d `data/board_deck.json` module, so the "static" board data *is*
     the live state. (It also used to empty the shared `data/game_deck.json` array while shuffling; it now shuffles
     a copy.)
