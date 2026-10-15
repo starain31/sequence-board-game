@@ -1,7 +1,7 @@
 const {UserError, validate_signup, hash_password, verify_password} = require('./user');
 
 describe('validate_signup', function () {
-    const valid = {handle: 'jabir', name: 'Jabir ibne kamal', password: 'correct horse'};
+    const valid = {handle: 'jabir', name: 'Jabir', password: 'correct horse'};
 
     function code_of(fields) {
         try {
@@ -25,9 +25,10 @@ describe('validate_signup', function () {
         expect(code_of({handle: 'a'.repeat(20)})).toBe('VALID');
     });
 
-    test('requires a display name of at most 50 characters', function () {
+    test('requires a display name of at most 10 characters', function () {
         expect(code_of({name: '   '})).toBe('INVALID_NAME');
-        expect(code_of({name: 'x'.repeat(51)})).toBe('INVALID_NAME');
+        expect(code_of({name: 'x'.repeat(11)})).toBe('INVALID_NAME');
+        expect(validate_signup(Object.assign({}, valid, {name: ' ' + 'x'.repeat(10) + ' '})).name).toBe('x'.repeat(10));
         expect(code_of({name: 42})).toBe('INVALID_NAME');
     });
 

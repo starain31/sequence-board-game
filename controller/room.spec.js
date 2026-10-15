@@ -21,7 +21,7 @@ describe_with_database('rooms and table games', function () {
 
     async function sign_up(handle) {
         agents[handle] = request.agent(app);
-        await agents[handle].post('/user/signup').send({handle, name: `Player ${handle}`, password: 'long enough'}).expect(201);
+        await agents[handle].post('/user/signup').send({handle, name: `P ${handle}`, password: 'long enough'}).expect(201);
     }
 
     async function open_room(handle, teams = 2, players = 1, settings = {}) {
@@ -183,7 +183,7 @@ describe_with_database('rooms and table games', function () {
             expect((await request(app).post(`/room/${id}/join`).send({team_handle: 'TEAM_2'})).body.message).toBe('NOT_SIGNED_IN');
 
             const room = (await request(app).get(`/room/${id}`)).body;
-            expect(room.teams[0].players).toEqual([{handle: 'alice', name: 'Player alice'}]);
+            expect(room.teams[0].players).toEqual([{handle: 'alice', name: 'P alice'}]);
         });
 
         test('a player can stand up and take another seat until the game starts', async function () {
@@ -195,7 +195,7 @@ describe_with_database('rooms and table games', function () {
             expect(left.status).toBe(200);
             expect(left.body.teams.map(function (t) {
                 return t.players;
-            })).toEqual([[null], [{handle: 'bob', name: 'Player bob'}]]);
+            })).toEqual([[null], [{handle: 'bob', name: 'P bob'}]]);
             // The freed seat can be taken by anyone, including the player who left.
             expect(await join('carol', id, 'TEAM_1')).toBe('success');
             await agents.carol.post(`/room/${id}/leave`).expect(200);
@@ -227,7 +227,7 @@ describe_with_database('rooms and table games', function () {
                 return call.event === 'teams_shuffled';
             });
             // As clients receive it: JSON, so dates are strings like in the HTTP response.
-            expect(JSON.parse(JSON.stringify(event.data))).toEqual({room_id: id, by: {handle: 'alice', name: 'Player alice'}, room: shuffled.body});
+            expect(JSON.parse(JSON.stringify(event.data))).toEqual({room_id: id, by: {handle: 'alice', name: 'P alice'}, room: shuffled.body});
             sent.mockRestore();
             const players = shuffled.body.teams.flatMap(function (t) {
                 return t.players;
@@ -270,8 +270,8 @@ describe_with_database('rooms and table games', function () {
             const seated_guest = await agents.bob.post(`/room/${id}/start`);
             expect([seated_guest.status, seated_guest.body.error]).toEqual([403, 'NOT_HOST']);
             // Players are addressed by their display name, not their handle.
-            expect(seated_guest.body.message).toBe('Only Player alice, who opened this table, can start its game.');
-            expect((await request(app).get(`/room/${id}`)).body).toMatchObject({administrator: 'alice', administrator_name: 'Player alice'});
+            expect(seated_guest.body.message).toBe('Only P alice, who opened this table, can start its game.');
+            expect((await request(app).get(`/room/${id}`)).body).toMatchObject({administrator: 'alice', administrator_name: 'P alice'});
 
             const started = await agents.alice.post(`/room/${id}/start`);
             expect(started.status).toBe(200);
@@ -645,7 +645,7 @@ describe_with_database('rooms and table games', function () {
                 [1, 1, first.handle, 'play', {row: first.body.row, column: first.body.column}],
                 [2, 2, second.handle, 'play', {row: second.body.row, column: second.body.column}],
             ]);
-            expect(turns[0].player.name).toBe(`Player ${first.handle}`);
+            expect(turns[0].player.name).toBe(`P ${first.handle}`);
             expect(JSON.stringify(turns)).not.toMatch(/"(hands?|deck|discard)"/);
             expect((await request(app).get('/room/nope/turns')).status).toBe(404);
         });
