@@ -43,6 +43,14 @@ async function record_move({room_id, previous, next, handle, move, turn_deadline
     );
 }
 
+// Saves a change to the game that isn't a move (a turn pausing or resuming), with the turn's new deadline.
+async function save_state({room_id, state, turn_deadline = null, client = pool}) {
+    await client.query(
+        'UPDATE games SET state = $2, updated_at = now(), turn_deadline = $3 WHERE room_id = $1',
+        [String(room_id), state, turn_deadline]
+    );
+}
+
 // Games in progress whose turn timer ran out at or before `now`, oldest deadline first: [room_id].
 async function overdue({now = new Date(), client = pool} = {}) {
     const {rows} = await client.query(
@@ -88,4 +96,4 @@ async function list_turns({room_id, client = pool}) {
     });
 }
 
-module.exports = {get, create, record_move, list_turns, overdue, get_deadline};
+module.exports = {get, create, record_move, save_state, list_turns, overdue, get_deadline};

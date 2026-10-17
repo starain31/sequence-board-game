@@ -5,6 +5,7 @@ const socket_server = require('../socket');
 const {broadcast_room} = require('./room');
 const {RuleError, create_game, apply_move, view_for, random_move} = require('../entity/sequence_game');
 const {suggest_move} = require('../entity/hints');
+const presence = require('./presence');
 
 // A game played at a room's table. Errors are JSON: {error: CODE, message}.
 
@@ -52,11 +53,55 @@ async function find_game(id, client) {
     return {room, game};
 }
 
-// When the current turn's timer runs out: its start plus the room's turn_seconds. Null once the game is over or
-// for a game stored before turns were stamped.
+// When the current turn's time is up: its start plus the room's turn_seconds plus the time it spent paused.
+function turn_end(room, game) {
+    return Date.parse(game.turn_started_at) + room.settings.turn_seconds * 1000 + (game.turn_paused_ms || 0);
+}
+
+// When the current turn's timer runs out. Null once the game is over, while the turn is paused (its player is away
+// from the table), or for a game stored before turns were stamped.
 function turn_deadline(room, game) {
-    if (game.winner !== null || !game.turn_started_at) return null;
-    return new Date(Date.parse(game.turn_started_at) + room.settings.turn_seconds * 1000);
+    if (game.winner !== null || !game.turn_started_at || game.turn_paused_at) return null;
+    return new Date(turn_end(room, game));
+}
+
+// The time left on a paused turn, frozen when it was paused. Null while the turn runs.
+function paused_time_left(room, game) {
+    if (game.winner !== null || !game.turn_started_at || !game.turn_paused_at) return null;
+    return Math.max(0, turn_end(room, game) - Date.parse(game.turn_paused_at));
+}
+
+// The current player left the table: the turn timer stops until they're back. Nobody plays for them meanwhile.
+function pause_turn(game, now = new Date()) {
+    if (game.winner !== null || !game.turn_started_at || game.turn_paused_at) return game;
+    return Object.assign({}, game, {turn_paused_at: now.toISOString()});
+}
+
+// The current player is back: the timer runs on from exactly where it stopped. The time spent away is added to the
+// turn, so the time left is what it was when they left.
+function resume_turn(room, game, now = new Date()) {
+    if (!game.turn_paused_at) return game;
+    const paused_ms = (game.turn_paused_ms || 0) + Math.max(0, now - Date.parse(game.turn_paused_at));
+    return Object.assign({}, game, {turn_paused_at: null, turn_paused_ms: paused_ms});
+}
+
+// Pauses the turn if its player is away from the table and resumes it once they're back. `acting` is someone known to
+// be there (the player who just moved), whether or not their game page has a socket open.
+function follow_presence(room, game, now = new Date(), acting = null) {
+    if (game.winner !== null || !game.turn_started_at) return game;
+    const handle = game.players[game.current].handle;
+    return handle === acting || presence.is_present(room.id, handle) ? resume_turn(room, game, now) : pause_turn(game, now);
+}
+
+// Seated players whose game page isn't open.
+function away_players(room, game) {
+    return game.players
+        .filter(function (player) {
+            return !presence.is_present(room.id, player.handle);
+        })
+        .map(function (player) {
+            return player.handle;
+        });
 }
 
 // The game as `handle` sees it, under the room's settings. Hints exist only in training games, and only for the
@@ -68,11 +113,20 @@ function view(room, game, handle) {
         : null;
     // server_time lets clients run the turn timer from their own clock even when it is off.
     const deadline = turn_deadline(room, game);
+    const seated = game.players.some(function (player) {
+        return player.handle === handle;
+    });
     return Object.assign(seen, {
         name: room.name,
         hint,
         turn_started_at: game.turn_started_at || null,
         turn_deadline: deadline === null ? null : deadline.toISOString(),
+        // While the current player is away the turn is paused: no deadline, and the time they'll have left.
+        turn_paused: Boolean(game.winner === null && game.turn_paused_at),
+        turn_time_left_ms: paused_time_left(room, game),
+        away: away_players(room, game),
+        // A seated player's game socket sends this to say they are at the table (see controller/presence.js).
+        presence_token: seated ? presence.token_for(room.id, handle) : null,
         server_time: new Date().toISOString(),
     });
 }
@@ -81,7 +135,7 @@ function view(room, game, handle) {
 // keeps it across restarts). An exchange keeps the turn, so it keeps the time too.
 function stamp_turn(previous, next, now = new Date()) {
     if (previous !== undefined && previous.turn === next.turn && previous.current === next.current) return next;
-    return Object.assign({}, next, {turn_started_at: now.toISOString()});
+    return Object.assign({}, next, {turn_started_at: now.toISOString(), turn_paused_at: null, turn_paused_ms: 0});
 }
 
 function signed_in_handle(req) {
@@ -117,7 +171,9 @@ async function start(req, res) {
         }
         if (!db_room.is_full(room)) throw new GameError('TABLE_NOT_FULL', 'Every seat must be taken before the game can start.');
 
-        const created = stamp_turn(undefined, create_game({teams: room.teams, rules: room.settings}));
+        // Players are still on the table page, so the first turn usually starts paused until its player opens the game.
+        const now = new Date();
+        const created = follow_presence(room, stamp_turn(undefined, create_game({teams: room.teams, rules: room.settings}), now), now);
         await db_game.create({room_id: id, state: created, turn_deadline: turn_deadline(room, created), client});
         return {room, game: created};
     });
@@ -151,7 +207,8 @@ function move_handler(build_move) {
             });
             if (!seated) throw new GameError('NOT_A_PLAYER', "You don't have a seat in this game.");
 
-            const played = stamp_turn(game, apply_move(game, handle, move));
+            const now = new Date();
+            const played = follow_presence(room, stamp_turn(game, apply_move(game, handle, move), now), now, handle);
             await db_game.record_move({room_id: id, previous: game, next: played, handle, move, turn_deadline: turn_deadline(room, played), client});
             return {room, next: played};
         });
@@ -187,31 +244,58 @@ function mark_timed_out(previous, next) {
 
 /**
  * Plays for the current player of `room_id` if their turn timer has run out: a random playable card (after
- * exchanging a dead card if nothing else can be played), or a pass. Runs in one transaction with the game locked
+ * exchanging a dead card if nothing else can be played), or a pass. If that player isn't at the table, their turn
+ * is paused instead. Runs in one transaction with the game locked
  * and checks the deadline again inside it, so a move that just made it in time wins. Returns whether it played.
  */
 async function expire_turn(room_id, now = new Date()) {
-    const played = await transaction(async function (client) {
+    const outcome = await transaction(async function (client) {
         const {room, game} = await find_game(room_id, client);
         const deadline = await db_game.get_deadline({room_id, client});
-        if (game.winner !== null || deadline === null || deadline > now) return null;
+        if (game.winner !== null || deadline === null || deadline > now) return 'waiting';
 
         const player = game.players[game.current].handle;
+        // Nobody plays for a player who isn't at the table: their turn waits for them (after a restart, for example,
+        // before their page has reconnected).
+        if (!presence.is_present(room.id, player)) {
+            const paused = pause_turn(game, now);
+            await db_game.save_state({room_id, state: paused, turn_deadline: null, client});
+            return 'paused';
+        }
         let state = game;
         // An exchange keeps the turn, so keep going until the turn is over (at most an exchange and a play).
         do {
             const move = random_move(state);
-            const next = stamp_turn(state, mark_timed_out(state, apply_move(state, player, move)));
+            const next = follow_presence(room, stamp_turn(state, mark_timed_out(state, apply_move(state, player, move)), now), now);
             await db_game.record_move({
                 room_id, previous: state, next, handle: player, move,
                 turn_deadline: turn_deadline(room, next), timed_out: true, client,
             });
             state = next;
         } while (state.winner === null && state.turn === game.turn && state.current === game.current);
-        return state;
+        return 'played';
     });
-    if (played !== null) broadcast_game(room_id);
-    return played !== null;
+    if (outcome !== 'waiting') broadcast_game(room_id);
+    return outcome === 'played';
+}
+
+/**
+ * A player opened or closed the game at `room_id` (see controller/presence.js): pauses the turn if its player has
+ * left, resumes it if they're back, and tells everyone, so they can see who is away. Returns whether the turn
+ * paused or resumed.
+ */
+async function presence_changed(room_id, now = new Date()) {
+    const outcome = await transaction(async function (client) {
+        const room = await db_room.get({id: room_id, client});
+        const game = room === undefined ? undefined : await db_game.get({room_id, client, lock: true});
+        if (game === undefined) return 'no game';
+        const next = follow_presence(room, game, now);
+        if (next === game) return 'unchanged';
+        await db_game.save_state({room_id, state: next, turn_deadline: turn_deadline(room, next), client});
+        return 'changed';
+    });
+    if (outcome !== 'no game') broadcast_game(room_id);
+    return outcome === 'changed';
 }
 
 /** Plays for every player whose turn timer has run out. Returns how many turns it played. */
@@ -260,4 +344,5 @@ module.exports = {
     expire_turn,
     expire_overdue_turns,
     start_turn_timer,
+    presence_changed,
 };

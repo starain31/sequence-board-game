@@ -93,7 +93,9 @@ function empty_chip_grid() {
 /**
  * @param {Array<{handle: string, players: Array<{handle: string, name: string}>}>} teams
  *        Full teams, in team order. Seats alternate teams: T1, T2, [T3,] T1, T2, …
- * @param {{auto_draw_dead?: boolean}} rules  Optional rules, kept in the state for the whole game.
+ * @param {{auto_draw_dead?: boolean, dead_cards?: string, exchanges_per_turn?: number|null}} rules  Optional rules,
+ *        kept in the state for the whole game. Dead cards are only auto-drawn when they are marked (`dead_cards` is
+ *        not 'manual'). `exchanges_per_turn` is how many dead cards a player may exchange per turn (null: unlimited).
  */
 function create_game({teams, rules = {}, random = Math.random}) {
     const team_count = teams.length;
@@ -122,7 +124,10 @@ function create_game({teams, rules = {}, random = Math.random}) {
 
     return start_turn({
         team_count,
-        rules: {auto_draw_dead: rules.auto_draw_dead === true},
+        rules: {
+            auto_draw_dead: rules.auto_draw_dead === true && rules.dead_cards !== 'manual',
+            exchanges_per_turn: exchange_limit({rules}),
+        },
         players,
         hands,
         chips: empty_chip_grid(),
@@ -130,7 +135,7 @@ function create_game({teams, rules = {}, random = Math.random}) {
         discard: [],
         current: 0,
         turn: 1,
-        exchanged_this_turn: false,
+        exchanges_this_turn: 0,
         sequences: [],
         winner: null,
         log: [],
@@ -205,10 +210,42 @@ function has_legal_play(state) {
     });
 }
 
+// Dead card exchanges allowed per turn: a number, or null for unlimited. Games stored before the limit existed
+// allowed one.
+function exchange_limit(state) {
+    const limit = state.rules && state.rules.exchanges_per_turn;
+    if (limit === null) return null;
+    return Number.isInteger(limit) && limit > 0 ? limit : 1;
+}
+
+// Exchanges the current player has made this turn (games stored before counting kept a flag).
+function exchanges_made(state) {
+    if (Number.isInteger(state.exchanges_this_turn)) return state.exchanges_this_turn;
+    return state.exchanged_this_turn ? 1 : 0;
+}
+
+/** How many more dead cards the current player may exchange this turn: a number, or null for unlimited. */
+function exchanges_left(state) {
+    const limit = exchange_limit(state);
+    return limit === null ? null : Math.max(0, limit - exchanges_made(state));
+}
+
+function may_exchange_more(state) {
+    const left = exchanges_left(state);
+    return state.winner === null && (left === null || left > 0);
+}
+
 function can_exchange(state) {
-    return state.winner === null && !state.exchanged_this_turn && state.hands[state.current].some(function (card) {
+    return may_exchange_more(state) && state.hands[state.current].some(function (card) {
         return is_dead_card(state, card);
     });
+}
+
+// One counted exchange, replacing the older flag.
+function count_exchange(state) {
+    const next = Object.assign({}, state, {exchanges_this_turn: exchanges_made(state) + 1});
+    delete next.exchanged_this_turn;
+    return next;
 }
 
 function can_pass(state) {
@@ -322,14 +359,17 @@ function play(state, hand_index, target, random) {
 
 function exchange(state, hand_index, random) {
     const card = card_at(state, hand_index);
-    if (state.exchanged_this_turn) {
-        throw new RuleError('ALREADY_EXCHANGED', 'You can exchange one dead card per turn. Play a card instead.');
+    if (!may_exchange_more(state)) {
+        const limit = exchange_limit(state);
+        throw new RuleError(
+            'ALREADY_EXCHANGED',
+            `You can exchange ${limit === 1 ? 'one dead card' : `${limit} dead cards`} per turn. Play a card instead.`
+        );
     }
     if (!is_dead_card(state, card)) throw new RuleError('NOT_DEAD', "That card still has an open cell, so it isn't dead.");
     const player = current_player(state);
-    const next = replace_card(state, hand_index, random);
+    const next = count_exchange(replace_card(state, hand_index, random));
     return Object.assign(next, {
-        exchanged_this_turn: true,
         log: next.log.concat({kind: 'exchange', turn: state.turn, player: player.name, team: player.team, card}),
     });
 }
@@ -357,28 +397,33 @@ function end_turn(state, random) {
     return start_turn(Object.assign({}, state, {
         current: (state.current + 1) % state.players.length,
         turn: state.turn + 1,
-        exchanged_this_turn: false,
+        exchanges_this_turn: 0,
+        exchanged_this_turn: undefined,
     }), random);
 }
 
 /**
- * With the auto_draw_dead rule, a dead card in the new current player's hand is exchanged for them. It is
- * their one exchange for the turn, as if they had made it, and is logged as an exchange with `auto: true`.
+ * With the auto_draw_dead rule, the dead cards in the new current player's hand are exchanged for them, as many
+ * as the turn's exchange limit allows. They count as the player's exchanges, as if they had made them, and are
+ * logged as exchanges with `auto: true`. A card drawn in their place is left for the player, even if it is dead.
  * Games stored before rules existed have no `rules` and play without it.
  */
 function start_turn(state, random) {
-    if (!state.rules || !state.rules.auto_draw_dead || state.winner !== null || state.exchanged_this_turn) return state;
-    const hand_index = state.hands[state.current].findIndex(function (card) {
-        return is_dead_card(state, card);
+    if (!state.rules || !state.rules.auto_draw_dead || state.winner !== null) return state;
+    const dead = state.hands[state.current].map(function (card, hand_index) {
+        return is_dead_card(state, card) ? hand_index : -1;
+    }).filter(function (hand_index) {
+        return hand_index !== -1;
     });
-    if (hand_index === -1) return state;
-    const card = state.hands[state.current][hand_index];
     const player = current_player(state);
-    const next = replace_card(state, hand_index, random);
-    return Object.assign(next, {
-        exchanged_this_turn: true,
-        log: next.log.concat({kind: 'exchange', turn: state.turn, player: player.name, team: player.team, card, auto: true}),
-    });
+    return dead.reduce(function (next, hand_index) {
+        if (!may_exchange_more(next)) return next;
+        const card = next.hands[next.current][hand_index];
+        const drawn = count_exchange(replace_card(next, hand_index, random));
+        return Object.assign(drawn, {
+            log: drawn.log.concat({kind: 'exchange', turn: next.turn, player: player.name, team: player.team, card, auto: true}),
+        });
+    }, state);
 }
 
 /** Corners are free spaces that count for every team. */
@@ -465,7 +510,10 @@ function view_for(state, handle, settings = {}) {
         }),
         viewer: seat === -1 ? null : state.players[seat].handle,
         hand: seat === -1 ? [] : state.hands[seat],
-        can_exchange: is_current && can_exchange(state),
+        // With dead cards found by hand ('manual'), saying whether a dead card is in the hand would give it away,
+        // so a player may ask for an exchange whenever they have exchanges left; the server checks the card.
+        can_exchange: is_current && (settings.dead_cards === 'manual' ? may_exchange_more(state) : can_exchange(state)),
+        exchanges_left: is_current ? exchanges_left(state) : null,
         can_pass: is_current && can_pass(state),
         deck_count: state.deck.length,
         sequences: state.sequences,
@@ -483,6 +531,7 @@ module.exports = {
     counts_for,
     in_bounds,
     can_exchange,
+    exchanges_left,
     RuleError,
     random_move,
     create_game,

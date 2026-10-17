@@ -52,14 +52,17 @@ been applied.
 ```
 bin/www               Applies migrations, then HTTP server, attaches Socket.IO, listens on PORT
 app.js                Express app: morgan, JSON/urlencoded body, static public/, session, /health, routers
+session.js            Session middleware (PostgreSQL store) and its secret
 docker-compose.yml    Development environment: Postgres, backend, frontend
-socket.js             Single Socket.IO server + broadcast({event, data}) to every connected socket
+socket.js             Single Socket.IO server + broadcast({event, data}) to every connected socket; join_game/leave_game
 
 routes/               Thin routers: user, room, game, board
 controller/
   user.js             signup, signin, signout, profile (JSON errors)
   room.js             create / get / join room, change its settings (host only), broadcasts room_updated
-  room_game.js        start a table's game, view it, play / exchange / pass; broadcasts game_updated
+  room_game.js        start a table's game, view it, play / exchange / pass; broadcasts game_updated; turn timer,
+                      pauses the turn of a player who is away from the table
+  presence.js         In memory: which seated players have their table's game open (signed socket tokens)
   board.js            serves data/board_deck.json (module singleton, also used as live board state)
   game.js             LEGACY global game: 4 hard-coded players, deal on module load, play endpoint
   index.js            Dead code (unattached socket.io instance, unused inquirer controller)
@@ -111,7 +114,8 @@ The `use_case` loop talks to the outside world through a controller object:
 ## State and lifetime
 
 Accounts, sessions, rooms, seats, table games and their turns are stored in PostgreSQL and survive restarts.
-Only the legacy developer game is still in memory and lost on restart (dealt once when
+Who is at each table (`controller/presence.js`) is also in memory: after a restart every player is away, and
+their turn waits, until their game page reconnects. Only the legacy developer game is still in memory and lost on restart (dealt once when
 `controller/game.js` is first required, at server start), and the board. There is one global HTTP game for
 the whole server, not one per room.
 

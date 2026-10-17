@@ -65,12 +65,15 @@ describe('slugs', function () {
 describe('settings', function () {
     test('missing keys keep the defaults', function () {
         expect(parse_settings({})).toEqual(DEFAULT_SETTINGS);
-        expect(DEFAULT_SETTINGS).toEqual({mode: 'standard', history: false, highlights: false, auto_draw_dead: false, turn_seconds: 90});
+        expect(DEFAULT_SETTINGS).toEqual({
+            mode: 'standard', history: false, highlights: false, auto_draw_dead: false, turn_seconds: 90,
+            dead_cards: 'manual', exchanges_per_turn: null,
+        });
     });
 
     test('reads booleans and their string forms, and ignores unknown keys', function () {
         expect(parse_settings({history: 'false', highlights: false, auto_draw_dead: true, other: 1}))
-            .toEqual({mode: 'standard', history: false, highlights: false, auto_draw_dead: true, turn_seconds: 90});
+            .toEqual(Object.assign({}, DEFAULT_SETTINGS, {auto_draw_dead: true}));
     });
 
     test('changes only the given keys of current settings', function () {
@@ -96,6 +99,29 @@ describe('settings', function () {
         for (const bad of [14, 601, 30.5, '', 'fast', null, true]) {
             expect(function () {
                 parse_settings({turn_seconds: bad});
+            }).toThrow(expect.objectContaining({code: 'INVALID_SETTINGS'}));
+        }
+    });
+
+    test('reads how dead cards are found: by hand (the default) or marked', function () {
+        expect(DEFAULT_SETTINGS.dead_cards).toBe('manual');
+        expect(parse_settings({dead_cards: 'indicator'}).dead_cards).toBe('indicator');
+        for (const bad of ['auto', true, null]) {
+            expect(function () {
+                parse_settings({dead_cards: bad});
+            }).toThrow(expect.objectContaining({code: 'INVALID_SETTINGS'}));
+        }
+    });
+
+    test('reads dead card exchanges per turn: unlimited by default, or 1 to 10', function () {
+        expect(DEFAULT_SETTINGS.exchanges_per_turn).toBe(null);
+        expect(parse_settings({exchanges_per_turn: 1}).exchanges_per_turn).toBe(1);
+        expect(parse_settings({exchanges_per_turn: '3'}).exchanges_per_turn).toBe(3);
+        expect(parse_settings({exchanges_per_turn: 'unlimited'}, Object.assign({}, DEFAULT_SETTINGS, {exchanges_per_turn: 2})).exchanges_per_turn).toBe(null);
+        expect(parse_settings({exchanges_per_turn: null}).exchanges_per_turn).toBe(null);
+        for (const bad of [0, 11, 1.5, '', 'many', true]) {
+            expect(function () {
+                parse_settings({exchanges_per_turn: bad});
             }).toThrow(expect.objectContaining({code: 'INVALID_SETTINGS'}));
         }
     });
